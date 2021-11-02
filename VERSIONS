@@ -1,0 +1,17 @@
+
+Based version of source files, srx(srx-server) and qsrx(quagga-srx)
+===================================================================
+
+1. First Development Versions (Jan. 2020)
+  (1) srx-server    : v0.5.1.0, ./srx
+  (2) quagga-srx    : v0.4.2.7, ./qsrx
+  (3) srxcryptoapi  : v0.3.0.0, /opt/project/srx_test1/api
+
+
+
+2. Second Development Versions (Oct. 2021)  in ./repo/ directory
+
+  (1) srx-server    : v0.6.1.0, ./srx-server-v6/ 
+  (2) quagga-srx    : v0.6.0.0, ./quagga-srx-v6/ 
+  (3) srxcryptoapi  : v0.3.0.0, /opt/project/srx_test1/api
+  

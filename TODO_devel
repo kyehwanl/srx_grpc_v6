@@ -1,0 +1,70 @@
+
+Development TODO List
+=====================
+
+1. sync request
+ (0) intro
+   * starting point: command_handler.c:  _processHandshake()
+
+   *TODO: sendSynchRequest  (command_handler.c:307)                   
+
+      if (cmdHandler->sysConfig->syncAfterConnEstablished)             
+        if (!sendSynchRequest(item->serverSocket, item->client, false))
+
+
+
+ (1) Server Procedures
+
+    connection established --> handshake --> sendSyncRequest to client proxy
+
+
+ (2) Client Proxy Procedures
+
+    srx_api.c:  dispatchPackets()
+
+      case PDU_SRXPROXY_SYNC_REQUEST:                               
+        processSyncRequest((SRXPROXY_SYNCH_REQUEST*)packet, proxy); 
+
+    srx_api.c:  processSyncRequest(), 1176
+        proxy->syncNotification(proxy->userPtr)
+
+        where, proxy->syncNotification = requestSynchronizationCallback
+
+        syncNotification() --> requestSynchronizationCallback --> handleSRxSynchRequest() 
+        --> _handleSRxSynchRequest_processTable(bgp, bgp->rib[AFI_IP][SAFI_UNICAST])
+
+
+        _handleSRxSynchRequest_processTable() {
+        ...
+          for (bnode = bgp_table_top(table); bnode; bnode = bgp_route_next(bnode))
+          {                                                                       
+            if (bnode->info != NULL)                                              
+            {                                                                     
+              binfo  = (struct bgp_info*)bnode->info;                             
+              srxLockUpdate(binfo);                                               
+              defResult.resSourceROA    = SRxRS_ROUTER;                           
+              defResult.resSourceBGPSEC = SRxRS_ROUTER;                           
+              defResult.resSourceASPA       = SRxRS_ROUTER;                       
+              defResult.result.roaResult    = binfo->val_res_ROA;                 
+              defResult.result.bgpsecResult = binfo->val_res_BGPSEC;              
+              defResult.result.aspaResult   = binfo->val_res_ASPA;                
+
+              verify_update (bgp, binfo, &defResult, false);                      
+              srxUnLockUpdate(binfo);                                             
+            }                                                                     
+          }                                                                       
+        ...
+        }
+
+
+
+  (3) Here "verify_update", check possiblities
+
+    - Automatically can call verifyUpdate_grpc when USE_GRPC (or grpc flags) is enabled ??
+
+
+
+
+
+
+

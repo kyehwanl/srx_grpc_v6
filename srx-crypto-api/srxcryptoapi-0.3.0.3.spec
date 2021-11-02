@@ -1,0 +1,193 @@
+%global _enable_debug_package 0
+%global debug_package %{nil}
+%global __os_install_post /usr/lib/rpm/brp-compress %{nil}
+
+%define package_num  0
+%define major_ver    3
+%define minor_ver    0
+%define update_num   3
+%define lib_ver_info 3.0.0
+%define srxdir       srx
+
+%define keyvault      /var/lib/bgpsec-keys
+
+%define lib_version_info %{lib_ver_info}
+%define package_version %{package_num}.%{major_ver}.%{minor_ver}.%{update_num}
+%define version %{package_version}
+%define name srxcryptoapi
+%if "no" == "no"
+  %define _unpackaged_files_terminate_build 0
+  %define la_lib_switch --without-la-lib
+%else
+  %define la_lib_switch --with-la-lib
+%endif
+%if "bgpsec_openssl" == ""
+  %define bgpsec_openssl_switch --without-bgpsec-openssl
+%else
+  %define bgpsec_openssl_switch --with-bgpsec-openssl
+%endif
+%if "crypto_testlib" == ""
+  %define testlib_switch --without-testlib
+%else
+  %define testlib_switch --with-testlib
+%endif
+
+
+Name:%{name}
+Version:%{version}
+Release:	1%{?dist}
+Summary:SRx Crypto API for BGPsec speakers
+
+Group:Security Libraries
+License:https://www.nist.gov/director/copyright-fair-use-and-licensing-statements-srd-data-and-software
+URL:https://bgpsrx.antd.nist.gov
+Source0:%{name}-%{version}.tar.gz
+BuildRoot: %(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
+Prefix: %{_prefix}
+Prefix: %{_sysconfdir}
+
+BuildRequires:automake	
+Requires:glibc libconfig >= 1.3 openssl >= 1.0.1e
+
+
+%description
+SRxCryptoAPI is free software that manages Cryptography plug ins for BGPsec
+path processing.
+
+This Software is a wrapper that allows to configure crypto implementations 
+which can be used by software packages such as QuaggaSRx (quaggasrx) and 
+SRX-Server (srx) to switch cryptography implementations.
+
+This wrapper allows to switch implementations without the need of recompiling 
+QuaggaSRx or SRx-Server. Future versions of both mentioned packages require this
+API.
+
+This software package Contains the following modules:
+ - The SRx Crypto API itself
+ - An OpenSSL based BGPsec path processing plugin
+ - A Test library
+ - Key generation tool using OpenSSL 
+
+
+%prep
+%setup -q
+
+
+%build
+%configure --prefix=/usr --sysconfdir=/etc %{bgpsec_openssl_switch} %{testlib_switch} %{la_lib_switch}
+make %{?_smp_mflags}
+#strip --strip-unneeded binary_name
+
+%install
+rm -rf $RPM_BUILD_ROOT
+make install DESTDIR=$RPM_BUILD_ROOT
+
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+
+%post
+mkdir -p %{keyvault}
+if [ ! -e %{keyvault}/ski-list.txt ]; then
+  touch %{keyvault}/ski-list.txt
+fi
+
+if [ ! -e %{keyvault}/priv-ski-list.txt ]; then
+  touch %{keyvault}/priv-ski-list.txt
+fi
+
+if [ ! -e %{_sysconfdir}/qsrx-router-key.cnf ]; then
+  mv -f %{_sysconfdir}/qsrx-router-key.cnf.sample %{_sysconfdir}/qsrx-router-key.cnf
+else
+  mv -f %{_sysconfdir}/qsrx-router-key.cnf.sample %{_sysconfdir}/qsrx-router-key.cnf.rpmnew
+fi
+
+if [ ! -e %{_sysconfdir}/srxcryptoapi.conf ]; then
+  mv -f %{_sysconfdir}/srxcryptoapi.conf.sample %{_sysconfdir}/srxcryptoapi.conf
+else
+  mv -f %{_sysconfdir}/srxcryptoapi.conf.sample %{_sysconfdir}/srxcryptoapi.conf.rpmnew
+fi
+ldconfig
+
+%preun
+# the installation created sample files, create some if they don't exist to
+# prevent the annoying yum warning
+touch %{_sysconfdir}/srxcryptoapi.conf.sample
+touch %{_sysconfdir}/qsrx-router-key.cnf.sample
+
+%postun
+if [ -e %{keyvault} ] ; then
+  if [ ! -s %{keyvault}/ski-list.txt ]; then
+    rm -rf %{keyvault}/ski-list.txt
+  fi
+
+  if [ ! -s %{keyvault}/priv-ski-list.txt ]; then
+    rm -rf %{keyvoault}/priv-ski-list.txt
+  fi
+
+  if [ "x$(ls -A %{keyvault})" = "x" ]; then
+    rmdir %{keyvault} >> /dev/null
+  fi
+fi
+# in case a .rpmnew exists remove it. In this case don't move .cnf or .conf into
+# .rpmsafe because the .cnf or .conf was generated elsewhere. in case no .rpmnew 
+# exists the .cnf or .conf was installed by this package and will be moved into
+# .rpmsafe 
+if [ -e %{_sysconfdir}/qsrx-router-key.cnf.rpmnew ]; then
+  rm -f %{_sysconfdir}/qsrx-router-key.cnf.rpmnew
+else 
+  if [ -e %{_sysconfdir}/qsrx-router-key.cnf ]; then
+    mv -f %{_sysconfdir}/qsrx-router-key.cnf %{_sysconfdir}/qsrx-router-key.cnf.rpmsafe
+  fi
+fi
+
+if [ -e %{_sysconfdir}/srxcryptoapi.conf.rpmnew ]; then
+  rm -f %{_sysconfdir}/srxcryptoapi.conf.rpmnew
+else
+  if [ -e %{_sysconfdir}/srxcryptoapi.conf ]; then
+    mv -f %{_sysconfdir}/srxcryptoapi.conf %{_sysconfdir}/srxcryptoapi.conf.rpmsafe
+  fi
+fi
+
+ldconfig
+
+%files
+%defattr(-,root,root,-)
+%doc
+%{_sysconfdir}/ld.so.conf.d/srxcryptoapi_lib64.conf
+%{_sysconfdir}/srxcryptoapi.conf.sample
+%{_sysconfdir}/qsrx-router-key.cnf.sample
+#%{_includedir}/%{srxdir}/srxcryptoapi.h
+%{_libdir}/%{srxdir}/libSRxCryptoAPI.so.%{lib_version_info}
+%{_libdir}/%{srxdir}/libSRxCryptoAPI.so.%{major_ver}
+%{_libdir}/%{srxdir}/libSRxCryptoAPI.so
+%if "no" == "yes"
+  %{_libdir}/%{srxdir}/libSRxCryptoAPI.la
+  %{_libdir}/%{srxdir}/libSRxCryptoAPI.a
+%endif
+%if "bgpsec_openssl" != ""
+  %{_libdir}/%{srxdir}/libSRxBGPSecOpenSSL.so.%{lib_version_info}
+  %{_libdir}/%{srxdir}/libSRxBGPSecOpenSSL.so.%{major_ver}
+  %{_libdir}/%{srxdir}/libSRxBGPSecOpenSSL.so
+%endif
+%if "no" == "yes" && "bgpsec_openssl" != ""
+  %{_libdir}/%{srxdir}/libSRxBGPSecOpenSSL.la
+  %{_libdir}/%{srxdir}/libSRxBGPSecOpenSSL.a
+%endif
+%if "crypto_testlib" != ""
+  %{_libdir}/%{srxdir}/libSRxCryptoTestlib.so.%{lib_version_info}
+  %{_libdir}/%{srxdir}/libSRxCryptoTestlib.so.%{major_ver}
+  %{_libdir}/%{srxdir}/libSRxCryptoTestlib.so
+%endif
+%if "no" == "yes" && "crypto_testlib" != ""
+  %{_libdir}/%{srxdir}/libSRxCryptoTestlib.la
+  %{_libdir}/%{srxdir}/libSRxCryptoTestlib.a
+%endif
+%{_sbindir}/srx_crypto_tester
+%{_sbindir}/qsrx-make-cert
+%{_sbindir}/qsrx-make-key
+%{_sbindir}/qsrx-publish
+%{_sbindir}/qsrx-view-cert
+%{_sbindir}/qsrx-view-csr
+%{_sbindir}/qsrx-view-subject

@@ -1,0 +1,63 @@
+
+
+
+(1) v5 case
+
+mkdir ${GOATH}/src/srx_grpc/srx/src/.libs
+
+gcc -DHAVE_CONFIG_H -fPIC -shared -o .libs/libgrpc_client_service.so client/grpc_client_service.c \
+          -I${GOPATH}/src/srx_grpc/srx/src \
+          -I${GOPATH}/src/srx_grpc/srx/src/../extras/local/include \
+          -I${GOPATH}/src/srx_grpc/srx/../_inst/include
+
+
+gcc -DHAVE_CONFIG_H -fPIC -shared -o .libs/libgrpc_service.so server/grpc_service.c \
+          -I${GOPATH}/src/srx_grpc/srx/src \
+          -I${GOPATH}/src/srx_grpc/srx/src/../extras/local/include \
+          -I${GOPATH}/src/srx_grpc/srx/../_inst/include
+
+
+
+
+
+
+(2) v6 at srx-server/src
+
+< server side - gcc (at srx-server/src) >
+gcc -DHAVE_CONFIG_H  -fPIC -shared -g  -o .libs/libgrpc_service.so server/grpc_service.c \
+        -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src \
+        -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/../extras/local/include \
+        -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/../_inst/include \
+        -L/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/.libs/ -lsrx_util
+
+
+< with libtool at server >
+/usr/bin/libtool --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H  -c -o grpc_service.lo server/grpc_service.c \
+        -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src \
+        -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/../extras/local/include \
+        -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/../_inst/include
+/usr/bin/libtool --tag=CC   --mode=link   gcc -DHAVE_CONFIG_H  -o libgrpc_service.la grpc_service.lo -rpath `pwd`/.libs \ 
+        -L/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/.libs/ -lsrx_util
+/usr/bin/libtool --tag=CC   --mode=install cp libgrpc_service.la ${GOPATH}/src/srx_grpc_v6/_inst/lib64
+/usr/bin/libtool --tag=CC   --finish ${GOPATH}/src/srx_grpc_v6/_inst/lib64
+
+
+
+< client side - gcc (at srx-server/src) >
+gcc -DHAVE_CONFIG_H -fPIC -shared -g -o .libs/libgrpc_client_service.so client/grpc_client_service.c \
+          -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src \
+          -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/../extras/local/include \
+          -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/../_inst/include
+
+
+
+< with libtool at client >
+/usr/bin/libtool --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H  -c -o grpc_client_service.lo client/grpc_client_service.c \
+        -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src \
+        -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/../extras/local/include \
+        -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/../_inst/include
+/usr/bin/libtool --tag=CC   --mode=link   gcc -DHAVE_CONFIG_H  -o libgrpc_client_service.la grpc_client_service.lo -rpath `pwd`/.libs 
+/usr/bin/libtool --tag=CC   --mode=install cp libgrpc_client_service.la ${GOPATH}/src/srx_grpc_v6/_inst/lib64
+/usr/bin/libtool --tag=CC   --finish ${GOPATH}/src/srx_grpc_v6/_inst/lib64
+
+

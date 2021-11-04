@@ -1468,7 +1468,7 @@ bool connectToSRx_grpc(SRxProxy* proxy, const char* host, int port,
   connHandler->established = false;
       
   // XXX NOTE: packet Handler set a flag,'established' with true or false
-  connHandler->packetHandler((SRXPROXY_BasicHeader*)result, proxy);
+  connHandler->packetHandler((SRXPROXY_BasicHeader*)result, proxy); // --> dispatchPackets()
 
   free(pRes);
   

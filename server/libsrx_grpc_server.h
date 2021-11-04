@@ -88,6 +88,8 @@ extern "C" {
 #endif
 
 
+extern GoUint8 InitWorkerPool();
+
 extern void cb_proxy(int p0, void* p1);
 
 extern void cb_proxyGoodBye(SRXPROXY_GOODBYE p0);

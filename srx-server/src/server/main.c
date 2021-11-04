@@ -831,7 +831,7 @@ void createGRPCService()
   pthread_attr_t attr;
   pthread_attr_init(&attr);
   pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-  LOG(LEVEL_INFO, HDR "+ pthread grpc service started...\n");
+  LOG(LEVEL_INFO, HDR "+ pthread grpc service started...\n", pthread_self());
 
   /* init service handler */
   grpcServiceHandler.cmdQueue   = &cmdQueue;
@@ -839,14 +839,16 @@ void createGRPCService()
   grpcServiceHandler.updCache = &updCache;
   grpcServiceHandler.svrConnHandler = &svrConnHandler;
 
-  LOG(LEVEL_DEBUG, HDR "+ grpcServiceHandler : %p  \n", &grpcServiceHandler );
-  LOG(LEVEL_DEBUG, HDR "+ grpcServiceHandler.CommandQueue   : %p  \n", grpcServiceHandler.cmdQueue);
-  LOG(LEVEL_DEBUG, HDR "+ grpcServiceHandler.CommandHandler : %p  \n", grpcServiceHandler.cmdHandler );
-  LOG(LEVEL_DEBUG, HDR "+ grpcServiceHandler.UpdateCache    : %p  \n", grpcServiceHandler.updCache);
-  LOG(LEVEL_DEBUG, HDR "+ grpcServiceHandler.svrConnHandler : %p  \n", grpcServiceHandler.svrConnHandler);
+  LOG(LEVEL_DEBUG,  "+ grpcServiceHandler : %p  \n", &grpcServiceHandler );
+  LOG(LEVEL_DEBUG,  "+ grpcServiceHandler.CommandQueue   : %p  \n", grpcServiceHandler.cmdQueue);
+  LOG(LEVEL_DEBUG,  "+ grpcServiceHandler.CommandHandler : %p  \n", grpcServiceHandler.cmdHandler );
+  LOG(LEVEL_DEBUG,  "+ grpcServiceHandler.UpdateCache    : %p  \n", grpcServiceHandler.updCache);
+  LOG(LEVEL_DEBUG,  "+ grpcServiceHandler.svrConnHandler : %p  \n", grpcServiceHandler.svrConnHandler);
+
+  LOG(LEVEL_INFO, "Init Worker Pool");
+  InitWorkerPool();
 
   int ret = pthread_create(&tid, &attr, gRPCService, &cmdHandler);
-
   if (ret != 0)
   {
     RAISE_ERROR("Failed to create a grpc thread");

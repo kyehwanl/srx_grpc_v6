@@ -716,7 +716,7 @@ void ImpleGoStreamThread (SRxProxy* proxy, uint32_t proxyID)
     {
         RAISE_ERROR("Failed to create a grpc thread");
     }
-    printf("+ General Purpose Stream Thread created \n");
+    printf("+ Stream Thread for notification created \n");
     pthread_join(tid2, NULL);
 
 
@@ -725,7 +725,7 @@ void ImpleGoStreamThread (SRxProxy* proxy, uint32_t proxyID)
     {
         RAISE_ERROR("Failed to create a grpc workerPoll thread");
     }
-    printf("+ General Purpose Stream Thread created \n");
+    printf("+ Worker Pool Thread created \n");
     pthread_join(tid3, NULL);
     
     printf("+ All Go Stream Threads Terminated \n");

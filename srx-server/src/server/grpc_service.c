@@ -26,12 +26,12 @@ __attribute__((always_inline)) inline void printHex(int len, unsigned char* buff
         
 static bool processHandshake_grpc(unsigned char *data, RET_DATA *rt)
 {
-  LOG(LEVEL_INFO, HDR "[%s] function called ", __FUNCTION__);
-  LOG(LEVEL_INFO, HDR "++ grpcServiceHandler : %p  \n", &grpcServiceHandler );
-  LOG(LEVEL_INFO, HDR "++ grpcServiceHandler.CommandQueue   : %p  ", grpcServiceHandler.cmdQueue);
-  LOG(LEVEL_INFO, HDR "++ grpcServiceHandler.CommandHandler : %p  ", grpcServiceHandler.cmdHandler );
-  LOG(LEVEL_INFO, HDR "++ grpcServiceHandler.UpdateCache    : %p  ", grpcServiceHandler.updCache);
-  LOG(LEVEL_INFO, HDR "++ grpcServiceHandler.svrConnHandler : %p  ", grpcServiceHandler.svrConnHandler);
+  LOG(LEVEL_INFO, HDR "[SRx server][grpc service] %s function called ", __FUNCTION__);
+  LOG(LEVEL_INFO, HDR "[SRx server][grpc service] grpcServiceHandler : %p  \n", &grpcServiceHandler );
+  LOG(LEVEL_INFO, HDR "[SRx server][grpc service] grpcServiceHandler.CommandQueue   : %p  ", grpcServiceHandler.cmdQueue);
+  LOG(LEVEL_INFO, HDR "[SRx server][grpc service] grpcServiceHandler.CommandHandler : %p  ", grpcServiceHandler.cmdHandler );
+  LOG(LEVEL_INFO, HDR "[SRx server][grpc service] grpcServiceHandler.UpdateCache    : %p  ", grpcServiceHandler.updCache);
+  LOG(LEVEL_INFO, HDR "[SRx server][grpc service] grpcServiceHandler.svrConnHandler : %p  ", grpcServiceHandler.svrConnHandler);
 
   SRXPROXY_HELLO* hdr  = (SRXPROXY_HELLO*)data;
   uint32_t proxyID     = 0;
@@ -55,7 +55,7 @@ static bool processHandshake_grpc(unsigned char *data, RET_DATA *rt)
   //cthread->caddr	  = caddr;
 
 
-  LOG(LEVEL_INFO, HDR "[SRx server] Obtained cthread: %p \n", cthread);
+  LOG(LEVEL_INFO, HDR "[SRx server][grpc service](Hello Resonse) Obtained cthread: %p \n", cthread);
 
 
   if (ntohs(hdr->version) != SRX_PROTOCOL_VER)
@@ -85,12 +85,12 @@ static bool processHandshake_grpc(unsigned char *data, RET_DATA *rt)
         clientID = 0; // FAIL HANDSHAKE
       }
 
-      LOG(LEVEL_INFO, HDR "[SRx server] proxyID: 0x%08X --> mapping[clientID:%d] cthread: %p\n", 
+      LOG(LEVEL_INFO, HDR "[SRx server][grpc service](Hello Resonse) proxyID: 0x%08X --> mapping[clientID:%d] cthread: %p\n", 
           proxyID,  clientID, grpcServiceHandler.svrConnHandler->proxyMap[clientID].socket);
     }
 
-    LOG (LEVEL_INFO, "Handshake: Connection to proxy[0x%08X] accepted. Proxy "
-        "registered as internal client[0x%02X]", proxyID, clientID);
+    LOG (LEVEL_INFO, "[SRx server][grpc service](Hello Resonse) Handshake: Connection to proxy[0x%08X] accepted."
+        " Proxy registered as internal client[0x%02X]", proxyID, clientID);
 
     cthread->proxyID  = proxyID;
     cthread->routerID = clientID;
@@ -103,7 +103,7 @@ static bool processHandshake_grpc(unsigned char *data, RET_DATA *rt)
 
 
     /* Send Hello Response */
-    LOG (LEVEL_INFO, HDR " [SRx server] send Hello Response");
+    LOG (LEVEL_INFO, HDR "[SRx server][grpc service](Hello Resonse) send Hello Response");
 
     bool retVal = true;
     uint32_t length = sizeof(SRXPROXY_HELLO_RESPONSE);
@@ -134,7 +134,10 @@ static bool processHandshake_grpc(unsigned char *data, RET_DATA *rt)
     // NOTE : sendSynchRequest  (command_handler.c:307)
 #if 1
     if (grpcServiceHandler.cmdHandler->sysConfig->syncAfterConnEstablished)
-        sendSynchRequest_grpc();
+    {
+      LOG (LEVEL_INFO, HDR "[SRx server][grpc service](Hello Resonse) call sendSyncRequest ");
+      sendSynchRequest_grpc();
+    }
 #endif
 
     
@@ -540,8 +543,8 @@ static void _processPeerChange_grpc(unsigned char *data, RET_DATA *rt, unsigned 
 //int responseGRPC (int size, unsigned char* data)
 RET_DATA responseGRPC (int size, unsigned char* data, unsigned int grpcClientID)
 {
-    printf("response GRPC call\n");
     setLogLevel(LEVEL_INFO);
+    LOG(LEVEL_INFO, HDR "response GRPC call");
     LOG(LEVEL_INFO, HDR "[SRx server] [%s] calling - size: %d, grpcClient ID: %02x", __FUNCTION__, size, grpcClientID);
 
     /*
@@ -645,8 +648,8 @@ RET_DATA responseGRPC (int size, unsigned char* data, unsigned int grpcClientID)
         LOG(LEVEL_INFO, HDR "GoodBye!", pthread_self());
     }
 
-    printf("======= [SRx server][responseGRPC] ======= \n "
-        " final Return data which will be sent to the client\n");
+    printf("======= [SRx server][responseGRPC] [pdu type: %d]======= \n "
+        " final Return data which will be sent to the client\n", bhdr->type);
     printHex(rt.size, rt.data);
     return rt;
 }
@@ -665,11 +668,21 @@ static bool sendSynchRequest_grpc()
   pdu->type      = PDU_SRXPROXY_SYNC_REQUEST;
   pdu->length    = htonl(length);
 
+      
+  LOG (LEVEL_INFO, HDR "[SRx server][sendSynchRequest](Hello Resonse) using queue-command to send sync request to client ");
+  if (!queueCommand(grpcServiceHandler.cmdQueue, COMMAND_TYPE_SRX_PROXY, NULL, NULL,
+        0, length, (uint8_t*)pdu))
+  {
+    RAISE_ERROR("Could not add validation request to command queue!");
+    retVal = false;
+  }
 
   // call cb proxyStream callback function
-  cb_proxyStream(length, pdu);
+  //cb_proxyStream(length, pdu);
   free(pdu);
 
+
+  return retVal;
 }
 
 

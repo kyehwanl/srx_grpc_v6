@@ -63,7 +63,7 @@ var chProxyStreamData chan StreamData
 /*
  * Worker goroutine Creation
  */
-const NUM_JobChan = 1000
+const NUM_JobChan = 1
 const WorkerCount = 1
 
 //var wg sync.WaitGroup
@@ -75,14 +75,21 @@ func worker(jobChan <-chan Job, workerId int32) {
 	log.Printf("++ [worker] (id: %d) goroutine generated and waiting job channel... \n ", workerId)
 	// NOTE: The performance can be affected by this job channel's capacity
 	// Because that will make the concurrency of Proxy Verify funtion
-	for job := range jobChan {
-		log.Printf("+++ [worker] (id: %d) job channel received : %#v\n", workerId, job)
+	/*
+		for job := range jobChan {
+			log.Printf("+++ [worker] (id: %d) job channel received : %#v\n", workerId, job)
 
-		//ProxyVerify(job.data, job.id, job.done, workerId)
-		chProxyStreamData <- job.data
-		log.Printf("++ [worker] (id: %d) Sent StreamData to Channel  \n")
-		log.Println("++ [worker] (id: %d) Waiting for the next job channel .... ")
-	}
+			//ProxyVerify(job.data, job.id, job.done, workerId)
+			chProxyStreamData <- job.data
+			log.Printf("++ [worker] (id: %d) Sent StreamData to Channel  \n")
+			log.Println("++ [worker] (id: %d) Waiting for the next job channel .... ")
+		}
+	*/
+
+	job := <-jobChan
+	log.Printf("++ [grpc server][worker](sync request) job: %#v\n", job)
+
+	chProxyStreamData <- job.data
 
 	// TODO: XXX  need to close job channel when all program done
 	//			 - To prevent goroutine leaks
@@ -168,19 +175,24 @@ func cb_proxyStream(f C.int, v unsafe.Pointer) {
 	}
 	log.Printf("++ [grpc server][cb_proxyStream](sync request) sending Sync Request message to Channel: %#v\n", m)
 
-	job := NewJob(m, 1)
+	/*
+			job := NewJob(m, 1)
 
-	// TODO: HERE goroutine ??
-	select {
-	case jobChan <- *job:
-		log.Printf("++ [grpc server][cb_proxyStream](sync request) sending job channel and cb_proxyStream closed  \n")
-	}
+			log.Printf("++ [grpc server][cb_proxyStream](sync request) job: %#v\n", *job)
 
-	<-time.After(3 * time.Second)
-	log.Printf("++ [grpc server][cb_proxyStream](sync request) is OVER  \n")
+				select {
+				case jobChan <- *job:
+					log.Printf("++ [grpc server][cb_proxyStream](sync request) sending job channel and cb_proxyStream closed  \n")
+					return
+				}
+		jobChan <- *job
+	*/
 
-	//chProxyStreamData <- m
+	go func() {
+		chProxyStreamData <- m
+	}()
 	//log.Printf("++ [grpc server][cb_proxyStream] Sent StreamData to Channel and callback function(cb_proxyStream) closed \n")
+	log.Printf("++ [grpc server][cb_proxyStream](sync request) is OVER  \n")
 
 }
 

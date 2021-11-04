@@ -680,7 +680,7 @@ static void* StreamThread(void *arg)
 static void* WorkerPoolThread(void *arg)
 {
 
-    bool ret = InitWorkerPool();
+    //bool ret = InitWorkerPool();
 }
 
 void ImpleGoStreamThread (SRxProxy* proxy, uint32_t proxyID)
@@ -720,6 +720,7 @@ void ImpleGoStreamThread (SRxProxy* proxy, uint32_t proxyID)
     pthread_join(tid2, NULL);
 
 
+    /*
     int ret3 = pthread_create(&tid3, &attr3, WorkerPoolThread, (void*)NULL);
     if (ret3 != 0)
     {
@@ -727,6 +728,7 @@ void ImpleGoStreamThread (SRxProxy* proxy, uint32_t proxyID)
     }
     printf("+ Worker Pool Thread created \n");
     pthread_join(tid3, NULL);
+    */
     
     printf("+ All Go Stream Threads Terminated \n");
 }

@@ -108,6 +108,7 @@
 #ifdef USE_GRPC
 #include "server/grpc_service.h"
 #include "server/libsrx_grpc_server.h"
+#define DEFAULT_GRPC_PORT 50000
 #endif
 
 // Some defines needed for east
@@ -848,6 +849,7 @@ void createGRPCService()
   LOG(LEVEL_INFO, "Init Worker Pool");
   InitWorkerPool();
 
+  // TODO: instead of cmd Handler as a argument, need more relavant variables such as port number
   int ret = pthread_create(&tid, &attr, gRPCService, &cmdHandler);
   if (ret != 0)
   {
@@ -862,9 +864,9 @@ void createGRPCService()
 static void* gRPCService(void* arg)
 {
   LOG(LEVEL_INFO, HDR "([0x%08X]) > gRPC Server Thread started ", pthread_self());
-
   LOG(LEVEL_INFO, HDR "++ pthread grpc service thread started...\n");
 
+  // TODO: put a port number into Serve(). This port number should be obtained from the server's config
   Serve();
 
   pthread_exit(0);

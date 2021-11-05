@@ -39,7 +39,6 @@ import (
 	"unsafe"
 )
 
-var port = flag.Int("port", 50000, "The server port")
 var gStream pb.SRxApi_SendAndWaitProcessServer
 var gStream_verify pb.SRxApi_ProxyVerifyStreamServer
 
@@ -616,6 +615,7 @@ func NewServer(g *grpc.Server) *Server {
 //export Serve
 func Serve() {
 
+	var port = flag.Int("port", 50000, "The server port")
 	// NOTE: here init handling
 	chGbsData = make(chan StreamData) // channel for Proxy GoodbyteStream
 	chProxyStreamData = make(chan StreamData)

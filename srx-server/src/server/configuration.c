@@ -245,6 +245,7 @@ void initConfiguration(Configuration* self)
   self->mode_no_sendqueue = false;
   self->mode_no_receivequeue = false;
 
+  self->grpc_port = DEFAULT_GRPC_PORT;
   self->defaultKeepWindow = SRX_DEFAULT_KEEP_WINDOW; // from srx_defs.h
   memset(&self->mapping_routerID, 0, MAX_PROXY_MAPPINGS);
 }

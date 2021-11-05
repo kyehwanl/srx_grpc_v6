@@ -790,6 +790,9 @@ void runServerLoop(ServerSocket* self, ClientMode clMode,
         cthread->clientFD = cliendFD;
         cthread->svrSock  = self;
         cthread->caddr	  = caddr;
+#ifdef USE_GRPC
+        cthread->type_grpc_client = false;
+#endif
 
         ret = pthread_create(&(cthread->thread), &attr,
                              CL_THREAD_ROUTINES[clMode],

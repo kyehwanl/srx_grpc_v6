@@ -108,7 +108,6 @@
 #ifdef USE_GRPC
 #include "server/grpc_service.h"
 #include "server/libsrx_grpc_server.h"
-#define DEFAULT_GRPC_PORT 50000
 #endif
 
 // Some defines needed for east
@@ -832,25 +831,27 @@ void createGRPCService()
   pthread_attr_t attr;
   pthread_attr_init(&attr);
   pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-  LOG(LEVEL_INFO, HDR "+ pthread grpc service started...\n", pthread_self());
+  LOG(LEVEL_INFO, HDR "+ pthread grpc service started (port:%d)...\n", pthread_self(), config.grpc_port);
 
   /* init service handler */
   grpcServiceHandler.cmdQueue   = &cmdQueue;
   grpcServiceHandler.cmdHandler = &cmdHandler;
   grpcServiceHandler.updCache = &updCache;
   grpcServiceHandler.svrConnHandler = &svrConnHandler;
+  grpcServiceHandler.grpc_port  = config.grpc_port;
 
   LOG(LEVEL_DEBUG,  "+ grpcServiceHandler : %p  \n", &grpcServiceHandler );
   LOG(LEVEL_DEBUG,  "+ grpcServiceHandler.CommandQueue   : %p  \n", grpcServiceHandler.cmdQueue);
   LOG(LEVEL_DEBUG,  "+ grpcServiceHandler.CommandHandler : %p  \n", grpcServiceHandler.cmdHandler );
   LOG(LEVEL_DEBUG,  "+ grpcServiceHandler.UpdateCache    : %p  \n", grpcServiceHandler.updCache);
   LOG(LEVEL_DEBUG,  "+ grpcServiceHandler.svrConnHandler : %p  \n", grpcServiceHandler.svrConnHandler);
+  LOG(LEVEL_INFO ,  "+ grpcServiceHandler.grpc_port      : %d  \n", grpcServiceHandler.grpc_port);
 
   LOG(LEVEL_INFO, "Init Worker Pool");
   InitWorkerPool();
 
   // TODO: instead of cmd Handler as a argument, need more relavant variables such as port number
-  int ret = pthread_create(&tid, &attr, gRPCService, &cmdHandler);
+  int ret = pthread_create(&tid, &attr, gRPCService, &grpcServiceHandler);
   if (ret != 0)
   {
     RAISE_ERROR("Failed to create a grpc thread");
@@ -863,11 +864,11 @@ void createGRPCService()
 
 static void* gRPCService(void* arg)
 {
-  LOG(LEVEL_INFO, HDR "([0x%08X]) > gRPC Server Thread started ", pthread_self());
+  GRPC_ServiceHandler* grpcSH = arg;
+  LOG(LEVEL_INFO, HDR "++ gRPC Server Thread started (port:%d)", pthread_self(), grpcSH->grpc_port);
   LOG(LEVEL_INFO, HDR "++ pthread grpc service thread started...\n");
 
-  // TODO: put a port number into Serve(). This port number should be obtained from the server's config
-  Serve();
+  Serve(grpcSH->grpc_port);
 
   pthread_exit(0);
 }

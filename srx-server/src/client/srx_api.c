@@ -214,6 +214,7 @@ void releaseSRxProxy(SRxProxy* proxy)
 {
   if (proxy != NULL)
   {
+    LOG(LEVEL_INFO, "### [%s] ###  Reset process ... ", __FUNCTION__);
     disconnectFromSRx(proxy, SRX_DEFAULT_KEEP_WINDOW);
     releaseSList(&proxy->peerAS);
     free(proxy->connHandler);
@@ -519,14 +520,15 @@ bool disconnectFromSRx(SRxProxy* proxy, uint16_t keepWindow)
 #ifdef USE_GRPC
       if(proxy->grpcClientEnable && connHandler->grpcClientID)
       {
-          sendGoodbye_grpc(connHandler, keepWindow);
-          connHandler->grpcClientID = 0;
-          proxy->grpcClientEnable = false;
-          proxy->grpcConnectionInit = false;
-          
+        LOG(LEVEL_INFO, "### [%s] ###  Reset process ... ", __FUNCTION__);
+        sendGoodbye_grpc(connHandler, keepWindow);
+        connHandler->grpcClientID = 0;
+        proxy->grpcClientEnable = false;
+        proxy->grpcConnectionInit = false;
+
       }
       else
-          sendGoodbye(connHandler, keepWindow);
+        sendGoodbye(connHandler, keepWindow);
 #else
       sendGoodbye(connHandler, keepWindow);
 #endif

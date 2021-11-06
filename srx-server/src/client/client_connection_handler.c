@@ -596,7 +596,6 @@ bool sendGoodbye_grpc(ClientConnectionHandler* self, uint16_t keepWindow)
   SRXPROXY_GOODBYE* hdr = (SRXPROXY_GOODBYE*)pdu;
   memset(pdu, 0, length);
 
-  LOG(LEVEL_INFO, HDR"+ send Goodbye! called", pthread_self() );
   hdr->type       = PDU_SRXPROXY_GOODBYE;
   hdr->keepWindow = htons(keepWindow);
   hdr->length     = htonl(length);

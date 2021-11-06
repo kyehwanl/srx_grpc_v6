@@ -1491,6 +1491,8 @@ bool addMapping(ServerConnectionHandler* self, uint32_t proxyID,
   // Now if still ok, get the map element belonging to the clientID
   if (ok)
   {
+  
+    ClientThread* cthread = (ClientThread*)cSocket;
     LOG(LEVEL_INFO,"Register proxyID[0x%08X] as clientID[0x%08X]",
         proxyID, clientID);
     if (self->proxyMap[clientID].proxyID == 0)
@@ -1503,6 +1505,12 @@ bool addMapping(ServerConnectionHandler* self, uint32_t proxyID,
     self->proxyMap[clientID].socket     = cSocket;
     self->proxyMap[clientID].isActive   = activate;
     self->proxyMap[clientID].crashed    = 0;
+#ifdef USE_GRPC
+    if(cthread && cthread->type_grpc_client)
+    {
+      self->proxyMap[clientID].grpcClient = true;
+    }
+#endif
     if (!activate)
     {
       // The mapping gets added. if not active is is considered pre-configured.
@@ -1606,6 +1614,7 @@ void deactivateConnectionMapping(ServerConnectionHandler* self,
                                  uint8_t clientID, bool crashed,
                                  uint16_t keepWindow)
 {
+  LOG(LEVEL_INFO,"############# [%s] ##########", __FUNCTION__);
   struct timespec time;
   clock_gettime(CLOCK_REALTIME, &time);
   if (keepWindow < (uint16_t)self->sysConfig->defaultKeepWindow)
@@ -1618,6 +1627,9 @@ void deactivateConnectionMapping(ServerConnectionHandler* self,
   self->proxyMap[clientID].crashed = crashed ? time.tv_sec : 0;
   _delMapping(self, clientID, keepWindow);
   self->proxyMap[clientID].updateCount = 0;
+#ifdef USE_GRPC
+  self->proxyMap[clientID].grpcClient = false;
+#endif
 }
 
 /**
@@ -1633,219 +1645,3 @@ void markConnectionHandlerShutdown(ServerConnectionHandler* self)
 }
 
 
-#if 0
-bool processValidationRequest_gRPC(ServerConnectionHandler* self,
-                              ServerSocket* svrSock, ClientThread* client,
-                              SRXRPOXY_BasicHeader_VerifyRequest* hdr)
-{
-  LOG(LEVEL_DEBUG, HDR "Enter processValidationRequest", pthread_self());
-
-  bool retVal = true;
-
-  // Determine if a receipt is requested and a result packet must be send
-  bool     receipt =    (hdr->flags & SRX_FLAG_REQUEST_RECEIPT)
-                      == SRX_FLAG_REQUEST_RECEIPT;
-  // prepare already the send flag. Later on, if this is > 0 send a response.
-  uint8_t  sendFlags = hdr->flags & SRX_FLAG_REQUEST_RECEIPT;
-
-  bool     doOriginVal = (hdr->flags & SRX_FLAG_ROA) == SRX_FLAG_ROA;
-  bool     doPathVal   = (hdr->flags & SRX_FLAG_BGPSEC) == SRX_FLAG_BGPSEC;
-  bool     doAspaVal   = (hdr->flags & SRX_FLAG_ASPA) == SRX_FLAG_ASPA;
-
-  bool      v4     = hdr->type == PDU_SRXPROXY_VERIFY_V4_REQUEST;
-  // Set the BGPsec data
-//  uint16_t bgpsecDataLen = 0;
-//  BGPSecData bgpsecData;
-//  bgpsecData.length = 0;
-//  bgpsecData.data   = (uint8_t*)hdr+(v4 ? sizeof(SRXPROXY_VERIFY_V4_REQUEST)
-//                                        : sizeof(SRXPROXY_VERIFY_V6_REQUEST));
-
-  uint32_t requestToken = receipt ? ntohl(hdr->requestToken)
-                                  : DONOTUSE_REQUEST_TOKEN;
-  uint32_t originAS = 0;
-  SRxUpdateID collisionID = 0;
-  SRxUpdateID updateID = 0;
-
-  bool doStoreUpdate = false;
-  IPPrefix* prefix = NULL;
-  // Specify the client id as a receiver only when validation is requested.
-  uint8_t clientID = (doOriginVal || doPathVal || doAspaVal) ? client->routerID : 0;
-
-  // 1. Prepare for and generate the ID of the update
-  prefix = malloc(sizeof(IPPrefix));
-  memset(prefix, 0, sizeof(IPPrefix));
-  prefix->length     = hdr->prefixLen;
-  BGPSecData bgpData;
-  memset (&bgpData, 0, sizeof(BGPSecData));
-  // initialize the val pointer - it will be adjusted within the correct
-  // request type.
-  uint8_t* valPtr = (uint8_t*)hdr;
-  if (v4)
-  {
-    SRXPROXY_VERIFY_V4_REQUEST* v4Hdr = (SRXPROXY_VERIFY_V4_REQUEST*)hdr;
-    valPtr += sizeof(SRXPROXY_VERIFY_V4_REQUEST);
-    prefix->ip.version  = 4;
-    prefix->ip.addr.v4  = v4Hdr->prefixAddress;
-    originAS            = ntohl(v4Hdr->originAS);
-    // The next two are in host format for convenience
-    bgpData.numberHops  = ntohs(v4Hdr->bgpsecValReqData.numHops);
-    bgpData.attr_length = ntohs(v4Hdr->bgpsecValReqData.attrLen);
-    // Now in network format as required.
-    bgpData.afi         = v4Hdr->bgpsecValReqData.valPrefix.afi;
-    bgpData.safi        = v4Hdr->bgpsecValReqData.valPrefix.safi;
-    bgpData.local_as    = v4Hdr->bgpsecValReqData.valData.local_as;
-  }
-  else
-  {
-    SRXPROXY_VERIFY_V6_REQUEST* v6Hdr = (SRXPROXY_VERIFY_V6_REQUEST*)hdr;
-    valPtr += sizeof(SRXPROXY_VERIFY_V6_REQUEST);
-    prefix->ip.version  = 6;
-    prefix->ip.addr.v6  = v6Hdr->prefixAddress;
-    originAS            = ntohl(v6Hdr->originAS);
-    // The next two are in host format for convenience
-    bgpData.numberHops  = ntohs(v6Hdr->bgpsecValReqData.numHops);
-    bgpData.attr_length = ntohs(v6Hdr->bgpsecValReqData.attrLen);
-    // Now in network format as required.
-    bgpData.afi         = v6Hdr->bgpsecValReqData.valPrefix.afi;
-    bgpData.safi        = v6Hdr->bgpsecValReqData.valPrefix.safi;
-    bgpData.local_as    = v6Hdr->bgpsecValReqData.valData.local_as;
-  }
-
-  // Check if AS path exists and if so then set it
-  if (bgpData.numberHops != 0)
-  {
-    bgpData.asPath = (uint32_t*)valPtr;
-  }
-  // Check if BGPsec path exits and if so then set it
-  if (bgpData.attr_length != 0)
-  {
-    // BGPsec attribute comes after the as4 path
-    bgpData.bgpsec_path_attr = valPtr + (bgpData.numberHops * 4);
-  }
-  
-
-
-  // 2. Generate the CRC based updateID
-  updateID = generateIdentifier(originAS, prefix, &bgpData);
-  // test for collision and attempt to resolve
-  collisionID = updateID;
-  while(detectCollision(self->updateCache, &updateID, prefix, originAS, 
-                        &bgpData))
-  {
-    updateID++;
-  }
-  if (collisionID != updateID)
-  {
-    LOG(LEVEL_NOTICE, "UpdateID collision detected!!. The original update ID"
-      " could have been [0x%08X] but was changed to a collision free ID "
-      "[0x%08X]!", collisionID, updateID);
-  }
-
-  //  3. Try to find the update, if it does not exist yet, store it.
-  SRxResult        srxRes;
-  SRxDefaultResult defResInfo;
-  // The method getUpdateResult will initialize the result parameters and
-  // register the client as listener (only if the update already exists)
-  ProxyClientMapping* clientMapping = clientID > 0 ? &self->proxyMap[clientID]
-                                                   : NULL;
-  uint32_t pathId = 0;
-
-  doStoreUpdate = !getUpdateResult (self->updateCache, &updateID,
-                                    clientID, clientMapping,
-                                    &srxRes, &defResInfo);
-
-  if (doStoreUpdate)
-  {
-    //TODO: Normally an update should be validated all the time. Maybe the
-    // update registration should be about the validation type. This way
-    // one can filter for what to listen for.
-
-    // TODO Check the store only in the spec. It might not make much sense at
-    // all. or if store only, the update will not be registered with the client?
-    // This allows a loading of the cache and starting to validate without
-    // a client attached. -> Or what about client 0 or 255??
-
-    // Copy the information of the default result. Just store them as they are
-    // provided with. -- it could be a store only without validation request!
-    // In this case check discussion on twiki
-    defResInfo.result.roaResult    = hdr->roaDefRes;
-    defResInfo.resSourceROA        = hdr->roaResSrc;
-
-    defResInfo.result.bgpsecResult = hdr->bgpsecDefRes;
-    defResInfo.resSourceBGPSEC     = hdr->bgpsecResSrc;
-
-    if (!storeUpdate(self->updateCache, clientID, clientMapping,
-                     &updateID, prefix, originAS, &defResInfo, &bgpData))
-    {
-      RAISE_SYS_ERROR("Could not store update [0x%08X]!!", updateID);
-      // Maybe check for ID conflict, if not then get result again - or just
-      // quit here!
-      free(prefix);
-      return false;
-    }
-
-    // Use the default result.
-    srxRes.roaResult    = defResInfo.result.roaResult;
-    srxRes.bgpsecResult = defResInfo.result.bgpsecResult;
-  }
-  free(prefix);
-  prefix = NULL;
-
-  // Just check if the client has the correct values for the requested results
-  if (doOriginVal && (hdr->roaDefRes != srxRes.roaResult))
-  {
-    sendFlags = sendFlags | SRX_FLAG_ROA;
-  }
-  if (doPathVal && (hdr->bgpsecDefRes != srxRes.bgpsecResult))
-  {
-    sendFlags = sendFlags | SRX_FLAG_BGPSEC;
-  }
-
-  if (sendFlags > 0) // a notification is needed. flags specifies the type
-  {
-    // TODO: Check specification if we can send a receipt without results, if
-    // not the following 6 lines MUST be included, otherwise not.
-    if (doOriginVal)
-    {
-      sendFlags = sendFlags | SRX_FLAG_ROA;
-    }
-    if (doPathVal)
-    {
-      sendFlags = sendFlags | SRX_FLAG_BGPSEC;
-    }
-
-    // Now send the results we know so far;
-    if (!sendVerifyNotification(svrSock, client, updateID, sendFlags,
-                                requestToken, srxRes.roaResult,
-                                srxRes.bgpsecResult,
-                                !self->sysConfig->mode_no_sendqueue))
-    {
-      RAISE_ERROR("Could not send the initial verify notification for update"
-        "[0x%08X] to client [0x%02X]!", updateID, client->routerID);
-      retVal = false;
-    }
-  }
-
-  // Now check if validation has to be performed again - In the case the 
-  // update was already stored and validated, the appropriate sendFlags does 
-  // not have the flags set and no additional validation has to be performed at 
-  // this point therefore also filter for sendFlags, the command handler will
-  // do it otherwise and we can save this effort.
-  if ((doOriginVal || doPathVal) && ((sendFlags & SRX_FLAG_ROA_AND_BGPSEC) > 0))
-  {
-    // Only keep the validation flags.
-    hdr->flags = sendFlags & SRX_FLAG_ROA_AND_BGPSEC;
-
-    // create the validation command!
-    if (!queueCommand(self->cmdQueue, COMMAND_TYPE_SRX_PROXY, svrSock, client,
-                      updateID, ntohl(hdr->length), (uint8_t*)hdr))
-    {
-      RAISE_ERROR("Could not add validation request to command queue!");
-      retVal = false;
-    }
-  }
-
-  LOG(LEVEL_DEBUG, HDR "Exit processValidationRequest", pthread_self());
-  return retVal;
-}
-#endif

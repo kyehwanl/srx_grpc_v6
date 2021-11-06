@@ -801,6 +801,7 @@ int bgp_srx_unset (struct bgp *bgp)
       thread_cancel(g_rq->t_read);
     }
 
+    zlog_info("[%s] bgp exit process", __FUNCTION__);
     disconnectFromSRx (bgp->srxProxy, bgp->srx_keepWindow);
   }
   else
@@ -3021,6 +3022,15 @@ bgp_delete (struct bgp *bgp)
   if (list_isempty(bm->bgp))
     bgp_close ();
 
+#ifdef USE_SRX
+  if (bgp->srxProxy)
+  {
+    zlog_debug ("[%s] calling release SRx proxy ", __FUNCTION__);
+    releaseSRxProxy (bgp->srxProxy);
+    bgp->srxProxy = NULL;
+  }
+#endif
+
   bgp_unlock(bgp);  /* initial reference */
 
   return 0;
@@ -3039,7 +3049,9 @@ bgp_unlock(struct bgp *bgp)
 {
   assert(bgp->lock > 0);
   if (--bgp->lock == 0)
+  {
     bgp_free (bgp);
+  }
 }
 
 static void
@@ -3071,7 +3083,9 @@ bgp_free (struct bgp *bgp)
   bgp_info_hash_finish (&bgp->info_lid_hash);
   if (bgp->srxProxy)
   {
+    zlog_debug ("[%s] calling release SRx proxy ", __FUNCTION__);
     releaseSRxProxy (bgp->srxProxy);
+    bgp->srxProxy = NULL;
   }
   int kIdx = 0;
   for (; kIdx < SRX_MAX_PRIVKEYS; kIdx++)

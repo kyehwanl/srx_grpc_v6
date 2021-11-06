@@ -19,6 +19,7 @@ typedef struct {
 
   // Argument (start)
   //CommandQueue*             queue;
+  uint32_t                  grpc_port;
 
 } GRPC_ServiceHandler;
 

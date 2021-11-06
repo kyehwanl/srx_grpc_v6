@@ -165,22 +165,32 @@ static void clientThreadCleanup(ClientMode mode, ClientThread* ct)
 static bool single_sendResult(ServerClient* client, void* data, size_t size)
 {
   ClientThread* clt = (ClientThread*)client;
-  bool retVal = true;
-  // Only when still active
-  if (clt->active)
+  bool retVal = false;
+#ifdef USE_GRPC
+  if(!clt->type_grpc_client)
+#endif
   {
-    lockMutex(&clt->writeMutex);
-    sendData(&clt->clientFD, data, (PacketLength)size);
-    unlockMutex(&clt->writeMutex);
+    // Only when still active
+    if (clt->active)
+    {
+      lockMutex(&clt->writeMutex);
+      sendData(&clt->clientFD, data, (PacketLength)size);
+      unlockMutex(&clt->writeMutex);
+      retVal = true;
+    }
+    else
+    {
+      RAISE_ERROR("Trying to send a packet over an inactive connection");
+      retVal = false;
+    }
   }
-  else
-  {
-    RAISE_ERROR("Trying to send a packet over an inactive connection");
-    retVal = false;
-  }
-  
 #ifdef USE_GRPC
 #if 0
+  //
+  // Here, instead of using TCP send, gRPC tranfer will be used
+  //
+  else
+  {
 #include "client/libsrx_grpc_client.h"
   // This is used for selecting grpc communication instead of TCP send
   char buff[10];
@@ -195,6 +205,7 @@ static bool single_sendResult(ServerClient* client, void* data, size_t size)
   GoSlice pdu = {(void*)buf_data, (GoInt)size, (GoInt)size};
   //GoSlice pdu = {(void*)buff, (GoInt)3, (GoInt)10};
   //result = Run(pdu);
+  }
 #endif
 #endif
  
@@ -827,7 +838,10 @@ static void _killClientThread(void* clt)
   if (clientThread->active)
   {
     // Close the client connection
-    close(clientThread->clientFD);
+#ifdef USE_GRPC
+    if(!clientThread->type_grpc_client)
+      close(clientThread->clientFD);
+#endif
 
     // Wait until the thread terminated - if necessary
     //pthread_join(clientThread->thread, NULL);
@@ -892,6 +906,7 @@ bool sendPacketToClient(ServerSocket* self, ServerClient* client,
  */
 int closeClientConnection(ServerSocket* self, ServerClient* client)
 {
+  LOG(LEVEL_INFO,"############# [%s] ##########", __FUNCTION__);
   ClientThread* clientThread = (ClientThread*)client;
 
   LOG(LEVEL_DEBUG, HDR "Close and remove client: Thread [0x%08X]; [ID :%u]; "
@@ -911,87 +926,6 @@ int closeClientConnection(ServerSocket* self, ServerClient* client)
 
 
 
-#if 0
-void runServerLoop_gRPC(ServerSocket* self, ClientMode clMode,
-                   void (*modeCallback)(), ClientStatusChanged statusCallback,
-                   void* user)
-{
-  static void* (*CL_THREAD_ROUTINES[NUM_CLIENT_MODES])(void*) = {
-                               single_handleClient,
-                               multi_handleClient,
-                               custom_handleClient
-  };
-
-  //int cliendFD;
-  struct sockaddr caddr;
-  socklen_t caddrSize;
-  char infoBuffer[MAX_SOCKET_STRING_LEN];
-  ClientThread* cthread;
-  int ret;
-
-  pthread_attr_t attr;
-  pthread_attr_init(&attr);
-  pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-
-  // Store the arguments
-  clMode = MODE_CUSTOM_CALLBACK;
-  self->mode = clMode;
-  self->modeCallback = modeCallback;
-  self->statusCallback = statusCallback;
-  self->user = user;
-
-  // No active threads
-  initSList(&self->cthreads);
-
-  LOG(LEVEL_DEBUG, HDR "Server loop, wait for listening grpc client ...", 
-          pthread_self());
-
-  // Prepare socket to accept connections
-  //listen(self->serverFD, MAX_PENDING_CONNECTIONS);
-  
-
-
-  // Spawn a thread for the new connection
-  cthread = (ClientThread*)appendToSList(&self->cthreads,
-          sizeof (ClientThread));
-  if (cthread == NULL)
-  {
-      RAISE_ERROR("Not enough memory for another connection");
-  }
-  else
-  {
-
-      cthread->active          = true;
-      cthread->initialized     = false;
-      cthread->goodByeReceived = false;
-
-      cthread->proxyID  = 0; // will be changed for srx-proxy during handshake
-      cthread->routerID = 0; // Indicates that it is currently not usable, 
-      // must be set during handshake
-      //cthread->clientFD = cliendFD;
-      cthread->svrSock  = self;
-      cthread->caddr	  = caddr;
-
-      // TODO: new thread needed for gRPC running
-      ret = pthread_create(&(cthread->thread), &attr,
-              CL_THREAD_ROUTINES[clMode],
-              (void*)cthread);
-      // TODO: custom_handleClient --> modeCallback --> handlePacket()
-      //
-      //       1. need to call 'handlePacket' here
-      //       2. _handlPacket's parameter filling with the proper values
-      //            (1) ServerSocket
-      //            (2) ServerClient
-      //            (3) srvConHandler
-      
-
-      if (ret != 0)
-      {
-          RAISE_ERROR("Failed to create a client thread");
-      }
-  }
-}
-#endif
 
 #ifdef USE_GRPC
 static void* thread_ClientHandler_gRPC(void* clientThread)

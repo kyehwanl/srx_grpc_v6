@@ -58,6 +58,7 @@ var g_std *os.File
 //var wgVf sync.WaitGroup
 var jobChan chan Job
 var chDoneProxyHello chan bool
+var chVerifyData chan Job
 
 const WorkerCount = 1
 
@@ -69,9 +70,14 @@ func worker(jobChan <-chan Job, workerId int32) {
 	// NOTE: The performance can be affected by this job channel's capacity
 	// Because that will make the concurrency of Proxy Verify funtion
 	for job := range jobChan {
-		log.Printf("+++ [worker] (id: %d) job channel received : %#v\n", workerId, job)
+		job.workerId = workerId
+
+		log.Printf("+++ [worker] (id: %d) job channel received : %v\n", workerId, job)
 		log.Println("+++ start Proxy Verify")
-		ProxyVerify(job.data, job.grpcClientID, job.done, workerId)
+
+		//ProxyVerify(job.data, job.grpcClientID, job.done, workerId)
+		chVerifyData <- job
+
 		log.Println("+++ Finished Proxy Verify ")
 		log.Println("+++ ... Waiting for the next job channel .... ")
 
@@ -86,6 +92,7 @@ func worker(jobChan <-chan Job, workerId int32) {
 type Job struct {
 	data         []byte
 	grpcClientID uint32
+	workerId     int32
 	done         chan bool
 }
 
@@ -151,8 +158,13 @@ func InitSRxGrpc(addr string) bool {
 	jobChan = make(chan Job, NUM_JobChan)
 	chDoneProxyHello = make(chan bool)
 
+	// input data for verify update
+	chVerifyData = make(chan Job)
+
 	log.Printf("[InitSRxGrpc] worker pool init \n")
 	InitWorkerPool()
+
+	go ImpleProxyVerifyBiStream()
 
 	//fmt.Printf("cli : %#v\n", cli)
 	//fmt.Printf("client.cli : %#v\n", client.cli)
@@ -596,13 +608,13 @@ func RunStream(data []byte) uint32 {
 //export RunProxyVerify
 func RunProxyVerify(data []byte, grpcClientID uint32) uint32 {
 
-	log.Printf("++ [RunProxy Verify] data: %#v, clientID: %d\n", data, grpcClientID)
+	log.Printf("++ [grpc client][RunProxy Verify] data: %v, clientID: %d\n", data, grpcClientID)
 	job := NewJob(data, grpcClientID)
-	log.Printf("++ New job generated: %#v\n", job)
+	log.Printf("++ [grpc client][RunProxy Verify] New job generated: %v\n", job)
 
 	select {
 	case jobChan <- *job:
-		log.Printf("++ [RunProxy Verify] Job was sent through Job channel (clientID:%d)\n", grpcClientID)
+		log.Printf("++ [grpc client][RunProxy Verify] Job was sent through Job channel (clientID:%d)\n", grpcClientID)
 		return 0
 		/*
 			default:
@@ -727,6 +739,117 @@ func ProxyVerify(data []byte, grpcClientID uint32, jobDone chan bool, workerId i
 	}
 
 	log.Printf("+ [grpc client][ProxyVerify][WorkerID:%d] Finished with Resopnse value", workerId)
+	return 0
+}
+
+func ImpleProxyVerifyBiStream() uint32 {
+
+	cli := client.cli
+	log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream] called \033[0m\n")
+
+	stream, err := cli.ProxyVerifyBiStream(context.Background())
+	if err != nil {
+		log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream] open stream error %v \033[0m\n", err)
+	}
+
+	ctx := stream.Context()
+	//ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	//defer cancel()
+	var workerId int32
+	Done := make(chan bool)
+
+	go func() {
+		for {
+			log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream](SEND) Waiting Verify request data ...\033[0m\n")
+			select {
+			case job := <-chVerifyData:
+				workerId = job.workerId
+				req := pb.ProxyVerifyRequest{
+					Data:         job.data,
+					Length:       uint32(len(job.data)),
+					GrpcClientID: job.grpcClientID,
+				}
+
+				log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][workerID:%d](SEND) req data :%v\033[0m\n",
+					job.workerId, req)
+				if err := stream.Send(&req); err != nil {
+					log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][workerID:%d](SEND) send err %v\033[0m\n",
+						job.workerId, err)
+				}
+				if err := stream.CloseSend(); err != nil {
+					log.Println(err)
+					return
+				}
+				log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][workerID:%d](SEND) %d bytes sent\033[0m",
+					job.workerId, req.Length)
+			}
+		}
+
+	}()
+	// XXX: Unfortunately, stream object is not thread-safe, so that it can't be used
+	//		for multi-go routines, otherwise stream.Recv() receives an arbituary Send() call
+	//		which was sent from the stream server
+	go func() {
+		for {
+			//fmt.Printf("[WorkerID: %d] (in go func) stream: %#v\n", workerId, stream)
+			resp, err := stream.Recv()
+			if err == io.EOF {
+				log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream](RECV) EOF close \033[0m\n")
+				close(Done)
+				return
+			}
+			if err != nil {
+				log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][WorkerID:%d](RECV) Error")
+				log.Printf(" - can not receive %v \033[0m\n", workerId, err)
+			}
+			log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][WorkerID:%d](RECV) responses: %#v \033[0m\n",
+				workerId, resp)
+
+			go_vn := &Go_ProxyVerifyNotify{
+				_type:         uint8(resp.Type),
+				_resultType:   uint8(resp.ResultType),
+				_roaResult:    uint8(resp.RoaResult),
+				_bgpsecResult: uint8(resp.BgpsecResult),
+				_aspaResult:   uint8(resp.BgpsecResult),
+				_length:       resp.Length,
+				_requestToken: resp.RequestToken,
+				_updateID:     resp.UpdateID,
+			}
+			vn := (*C.SRXPROXY_VERIFY_NOTIFICATION)(C.malloc(C.sizeof_SRXPROXY_VERIFY_NOTIFICATION))
+			defer C.free(unsafe.Pointer(vn))
+			go_vn.Pack(unsafe.Pointer(vn))
+			//log.Printf("[WorkerID: %d] vn: %#v\n", workerId, vn)
+
+			// to avoid runtime: address space conflict:
+			//			and fatal error: runtime: address space conflict
+			//	    NEED to make a shared library at the client side same way at server side
+			C.processVerifyNotify_grpc(vn)
+
+			// signal when the notification is over from SRx server
+			// TODO: need to consider to have a flag that indicates ROA validation result was received
+			if resp.Type == 0x06 && resp.ResultType == 0x02 && resp.RequestToken == 0x0 {
+
+				log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][WorkerID:%d] Something Wrong \033[0m \n",
+					workerId)
+				//return
+			}
+		}
+		log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][WorkerID:%d] Stream Go routine Ended \033[0m \n",
+			workerId)
+	}()
+
+	go func() {
+		<-ctx.Done()
+		log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][WorkerID:%d]")
+		log.Printf("Client Context Done (the Reason follows) \033[0m \n", workerId)
+		if err := ctx.Err(); err != nil {
+			log.Println(err)
+		}
+	}()
+
+	<-Done
+	log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][WorkerID:%d] Finished with Resopnse value \033[0m \n",
+		workerId)
 	return 0
 }
 

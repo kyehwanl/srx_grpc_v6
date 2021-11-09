@@ -690,7 +690,7 @@ func ProxyVerify(data []byte, grpcClientID uint32, jobDone chan bool, workerId i
 					_resultType:   uint8(resp.ResultType),
 					_roaResult:    uint8(resp.RoaResult),
 					_bgpsecResult: uint8(resp.BgpsecResult),
-					_aspaResult:   uint8(resp.BgpsecResult),
+					_aspaResult:   uint8(resp.AspaResult),
 					_length:       resp.Length,
 					_requestToken: resp.RequestToken,
 					_updateID:     resp.UpdateID,
@@ -773,11 +773,12 @@ func ImpleProxyVerifyBiStream() uint32 {
 				log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][workerID:%d](SEND) req data :%v\033[0m\n",
 					job.workerId, req)
 				if err := stream.Send(&req); err != nil {
-					log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][workerID:%d](SEND) send err %v\033[0m\n",
+					log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][workerID:%d](SEND) send error %v\033[0m\n",
 						job.workerId, err)
-				}
-				if err := stream.CloseSend(); err != nil {
-					log.Println(err)
+
+					if err := stream.CloseSend(); err != nil {
+						log.Println(err)
+					}
 					return
 				}
 				log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][workerID:%d](SEND) %d bytes sent\033[0m",
@@ -790,17 +791,18 @@ func ImpleProxyVerifyBiStream() uint32 {
 	//		for multi-go routines, otherwise stream.Recv() receives an arbituary Send() call
 	//		which was sent from the stream server
 	go func() {
+		defer close(Done)
 		for {
 			//fmt.Printf("[WorkerID: %d] (in go func) stream: %#v\n", workerId, stream)
 			resp, err := stream.Recv()
 			if err == io.EOF {
 				log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream](RECV) EOF close \033[0m\n")
-				close(Done)
 				return
 			}
 			if err != nil {
-				log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][WorkerID:%d](RECV) Error")
-				log.Printf(" - can not receive %v \033[0m\n", workerId, err)
+				log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream](RECV) Error - can not receive %v \033[0m\n",
+					err)
+				return
 			}
 			log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][WorkerID:%d](RECV) responses: %#v \033[0m\n",
 				workerId, resp)
@@ -810,7 +812,7 @@ func ImpleProxyVerifyBiStream() uint32 {
 				_resultType:   uint8(resp.ResultType),
 				_roaResult:    uint8(resp.RoaResult),
 				_bgpsecResult: uint8(resp.BgpsecResult),
-				_aspaResult:   uint8(resp.BgpsecResult),
+				_aspaResult:   uint8(resp.AspaResult),
 				_length:       resp.Length,
 				_requestToken: resp.RequestToken,
 				_updateID:     resp.UpdateID,
@@ -840,8 +842,7 @@ func ImpleProxyVerifyBiStream() uint32 {
 
 	go func() {
 		<-ctx.Done()
-		log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][WorkerID:%d]")
-		log.Printf("Client Context Done (the Reason follows) \033[0m \n", workerId)
+		log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][WorkerID:%d] Client Context Done (Reason follows) \033[0m \n", workerId)
 		if err := ctx.Err(); err != nil {
 			log.Println(err)
 		}

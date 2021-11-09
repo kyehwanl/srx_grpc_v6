@@ -304,11 +304,14 @@ func cbService_VerifyNotify(f int, b []byte) {
 			}
 		}
 
+		<-time.After(1 * time.Millisecond)
+
 		if err := gBiStream_verify.Send(&resp); err != nil {
 			log.Printf("\033[0;32m++ [grpc server][cbService_VerifyNotify] grpc send error %#v  \033[0m \n", err)
 		}
 		_, _, line, _ := runtime.Caller(0)
-		log.Printf("++ [grpc server][cbService_VerifyNotify][server:%d] sending stream data", line+1)
+		log.Printf("\033[0;32m++ [grpc server][cbService_VerifyNotify][server:%d] sending stream resp: %#v \033[0m \n",
+			line+1, resp)
 
 	}
 
@@ -681,17 +684,17 @@ func (s *Server) ProxyVerifyBiStream(stream pb.SRxApi_ProxyVerifyBiStreamServer)
 			continue
 		}
 
-		log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream] grpc Client ID: %02x, data length: %d, \n Data: %v \033[0m\n",
+		log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream](RECV) grpc ID: %02x, length: %d, \n Data: %v \033[0m\n",
 			req.GrpcClientID, req.Length, req.Data)
 
 		retData := C.RET_DATA{}
 		retData = C.responseGRPC(C.int(req.Length), (*C.uchar)(unsafe.Pointer(&req.Data[0])), C.uint(req.GrpcClientID))
 
 		b := C.GoBytes(unsafe.Pointer(retData.data), C.int(retData.size))
-		log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream] return size: %d \t data: %#v \033[0m\n", retData.size, b)
+		log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream](SEND) return size: %d \n data: %#v \033[0m\n", retData.size, b)
 
 		if retData.size == 0 {
-			//return nil
+			continue
 		}
 
 		resp := pb.ProxyVerifyNotify{
@@ -706,9 +709,9 @@ func (s *Server) ProxyVerifyBiStream(stream pb.SRxApi_ProxyVerifyBiStreamServer)
 		}
 
 		if err := stream.Send(&resp); err != nil {
-			log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream] send error %#v \033[0m \n", err)
+			log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream](SEDN) send error %#v \033[0m \n", err)
 		}
-		log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream] sending stream data: %#v \033[0m\n", resp)
+		log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream](SEND) sending stream data: %#v \033[0m\n", resp)
 	}
 
 	return nil

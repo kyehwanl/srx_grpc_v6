@@ -866,8 +866,8 @@ static bool _processUpdateValidation(CommandHandler* cmdHandler,
   
 #ifdef USE_GRPC
   // [grpc] close send stream from server
-  if (cmdHandler->grpcEnable)
-      cb_proxy(0, NULL);
+  //if (cmdHandler->grpcEnable)
+      //cb_proxy(0, NULL);
 #endif
   
   return processed;

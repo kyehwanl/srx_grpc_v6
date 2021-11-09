@@ -392,9 +392,9 @@ static bool processValidationRequest_grpc(unsigned char *data, RET_DATA *rt, uns
   free(prefix);
   prefix = NULL;
 
-  LOG(LEVEL_INFO, HDR "+ from update cache srxRes.roaResult : %02x\n", srxRes.roaResult);
-  LOG(LEVEL_INFO, HDR "+ from update cache srxRes.bgpsecResult : %02x\n", srxRes.bgpsecResult);
-  LOG(LEVEL_INFO, HDR "+ from update cache srxRes.aspaesult : %02x\n", srxRes.aspaResult);
+  LOG(LEVEL_INFO, HDR "+ from update cache srxRes.roaResult : %02x", srxRes.roaResult);
+  LOG(LEVEL_INFO, HDR "+ from update cache srxRes.bgpsecResult : %02x", srxRes.bgpsecResult);
+  LOG(LEVEL_INFO, HDR "+ from update cache srxRes.aspaesult : %02x", srxRes.aspaResult);
 
 
   if (modifyUpdateCacheWithAspaValue)
@@ -416,6 +416,7 @@ static bool processValidationRequest_grpc(unsigned char *data, RET_DATA *rt, uns
   }
 
 
+  LOG(LEVEL_DEBUG, HDR"\033[0;35m sendflag: %x \033[0m", sendFlags);
   if (sendFlags > 0) // a notification is needed. flags specifies the type
   {
     // TODO: Check specification if we can send a receipt without results, if
@@ -433,6 +434,7 @@ static bool processValidationRequest_grpc(unsigned char *data, RET_DATA *rt, uns
       sendFlags = sendFlags | SRX_FLAG_ASPA;
     }
 
+  
     // Now send the results we know so far;
     
     /*

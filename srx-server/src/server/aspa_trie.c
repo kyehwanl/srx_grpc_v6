@@ -333,7 +333,7 @@ static int search_trie(TrieNode* root, char* word)
 //
 ASPA_Object* findAspaObject(ASPA_DBManager* self, char* word)
 {
-    ASPA_Object *obj;
+    ASPA_Object *obj=NULL;
   
     acquireWriteLock(&self->tableLock);
     TrieNode* temp = self->tableRoot; 

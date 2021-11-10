@@ -29,11 +29,13 @@ GRPC_ServiceHandler     grpcServiceHandler;
 typedef struct {
     unsigned int size;
     unsigned char *data;
+    unsigned char info;
 } RET_DATA;
 
 //int responseGRPC (int size);
 //int responseGRPC (int size, unsigned char* data);
 RET_DATA responseGRPC (int size, unsigned char* data, unsigned int grpcClientID);
+void RunQueueCommand(int size, unsigned char *data, RET_DATA *rt, unsigned int grpcClientID);
 
 
 

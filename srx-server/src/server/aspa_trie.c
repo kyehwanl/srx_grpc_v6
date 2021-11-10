@@ -500,100 +500,91 @@ int process_ASPA_EndOfData_main(void* uc, void* handler, uint32_t uid,
   }
   else
   {
-    if (defaultRes.result.aspaResult != SRx_RESULT_INVALID)
+    ASPA_DBManager* aspaDBManager = rpkiHandler->aspaDBManager;
+    TrieNode *root = aspaDBManager->tableRoot;
+
+    LOG(LEVEL_INFO, "Update ID: 0x%08X  Path ID: 0x%08X", updateID, pathId);
+
+    uint8_t old_aspaResult = srxRes.aspaResult; // obtained from getUpdateResult above
+    AS_PATH_LIST *aspl = getAspathListFromAspathCache (rpkiHandler->aspathCache, pathId, &srxRes);
+
+    if (aspl)
     {
-      ASPA_DBManager* aspaDBManager = rpkiHandler->aspaDBManager;
-      TrieNode *root = aspaDBManager->tableRoot;
+      uint8_t afi = aspl->afi;  
+      if (aspl->afi == 0 || aspl->afi > 2) // if more than 2 (AFI_IP6)
+        afi = AFI_IP;                      // set default
 
-      LOG(LEVEL_INFO, "Update ID: 0x%08X  Path ID: 0x%08X", updateID, pathId);
 
-      uint8_t old_aspaResult = srxRes.aspaResult; // obtained from getUpdateResult above
-      AS_PATH_LIST *aspl = getAspathListFromAspathCache (rpkiHandler->aspathCache, pathId, &srxRes);
-
-      if (aspl)
+      LOG(LEVEL_INFO, "Comparison End of Data time(%u) : AS cache entry updated time (%u)",
+          lastEndOfDataTime, aspl->lastModified);
+      // timestamp comparison
+      //
+      if (lastEndOfDataTime > aspl->lastModified)
       {
-        uint8_t afi = aspl->afi;  
-        if (aspl->afi == 0 || aspl->afi > 2) // if more than 2 (AFI_IP6)
-          afi = AFI_IP;                      // set default
-
-            
-        LOG(LEVEL_INFO, "Comparison End of Data time(%u) : AS cache entry updated time (%u)",
-            lastEndOfDataTime, aspl->lastModified);
-        // timestamp comparison
+        // call ASPA validation
         //
-        if (lastEndOfDataTime > aspl->lastModified)
+        uint8_t valResult = validateASPA (aspl->asPathList, 
+            aspl->asPathLength, aspl->asType, aspl->asRelDir, afi, aspaDBManager);
+
+        LOG(LEVEL_INFO, FILE_LINE_INFO "\033[92m"" Validation Result: %d "
+            "(0:v, 2:Iv, 3:Ud 4:DNU 5:Uk, 6:Uf)""\033[0m", valResult);
+
+        // update the last validation time regardless of changed or not
+        time_t cTime = time(NULL);
+        aspl->lastModified = cTime;
+
+        // modify Aspath Cache with the validation result
+        modifyAspaValidationResultToAspathCache (rpkiHandler->aspathCache, pathId, valResult, aspl);
+
+        // modify UpdateCache data and enqueue as well
+        if (valResult != aspl->aspaValResult)
         {
-          // call ASPA validation
-          //
-          uint8_t valResult = validateASPA (aspl->asPathList, 
-              aspl->asPathLength, aspl->asType, aspl->asRelDir, afi, aspaDBManager);
+          aspl->aspaValResult = valResult;
+          srxRes.aspaResult = valResult;
 
-          LOG(LEVEL_INFO, FILE_LINE_INFO "\033[92m"" Validation Result: %d "
-              "(0:v, 2:Iv, 3:Ud 4:DNU 5:Uk, 6:Uf)""\033[0m", valResult);
+          // UpdateCache change
+          modifyUpdateCacheResultWithAspaVal(uCache, &updateID, &srxRes);
 
-          // update the last validation time regardless of changed or not
-          time_t cTime = time(NULL);
-          aspl->lastModified = cTime;
-
-          // modify Aspath Cache with the validation result
-          modifyAspaValidationResultToAspathCache (rpkiHandler->aspathCache, pathId, valResult, aspl);
-
-          // modify UpdateCache data and enqueue as well
-          if (valResult != aspl->aspaValResult)
-          {
-            aspl->aspaValResult = valResult;
-            srxRes.aspaResult = valResult;
-
-            // UpdateCache change
-            modifyUpdateCacheResultWithAspaVal(uCache, &updateID, &srxRes);
-
-            // if different values, queuing
-            RPKI_QUEUE*      rQueue = getRPKIQueue();
-            rq_queue(rQueue, RQ_ASPA, &updateID);
-            LOG(LEVEL_INFO, "rpki queuing for aspa validation [uID:0x%08X]", updateID);
-          }
+          // if different values, queuing
+          RPKI_QUEUE*      rQueue = getRPKIQueue();
+          rq_queue(rQueue, RQ_ASPA, &updateID);
+          LOG(LEVEL_INFO, "rpki queuing for aspa validation [uID:0x%08X]", updateID);
         }
-        //
-        // in case there is another update cache entry whose path id is same with the previous
-        // This prevents from doing ASPA validation repeatedly with the same AS path list
-        //
-        else /* if else time comparison */
-        {
-          // update cache entry with the new value 
-          if (old_aspaResult != aspl->aspaValResult)
-          {
-            LOG(LEVEL_INFO, FILE_LINE_INFO " ASPA validation result already set and "
-                " the existed validation result [%d] in UpdateCache is being updated with a new result[%d]", 
-                old_aspaResult, aspl->aspaValResult);
-            srxRes.aspaResult = aspl->aspaValResult;
-
-            // modify UpdateCache data as well
-            modifyUpdateCacheResultWithAspaVal(uCache, &updateID, &srxRes);
-
-            // if different values, queuing
-            RPKI_QUEUE*      rQueue = getRPKIQueue();
-            rq_queue(rQueue, RQ_ASPA, &updateID);
-            LOG(LEVEL_INFO, "rpki queuing for aspa validation [uID:0x%08X]", updateID);
-          }
-        }
-
       }
-      else /* no aspath list */
+      //
+      // in case there is another update cache entry whose path id is same with the previous
+      // This prevents from doing ASPA validation repeatedly with the same AS path list
+      //
+      else /* if else time comparison */
       {
-        LOG(LEVEL_WARNING, "Update 0x%08X is registered for ASPA but the "
-            "AS Path List is not found!", updateID);
-      } // end of if aspl
+        // update cache entry with the new value 
+        if (old_aspaResult != aspl->aspaValResult)
+        {
+          LOG(LEVEL_INFO, FILE_LINE_INFO " ASPA validation result already set and "
+              " the existed validation result [%d] in UpdateCache is being updated with a new result[%d]", 
+              old_aspaResult, aspl->aspaValResult);
+          srxRes.aspaResult = aspl->aspaValResult;
 
-      if (aspl)
-        free (aspl);
+          // modify UpdateCache data as well
+          modifyUpdateCacheResultWithAspaVal(uCache, &updateID, &srxRes);
 
-    } // end of if defaultRes result
-    else 
-    {
-      LOG(LEVEL_ERROR, "Update 0x%08X is not capable to do ASPA validation",
-          updateID);
-      return 0;
+          // if different values, queuing
+          RPKI_QUEUE*      rQueue = getRPKIQueue();
+          rq_queue(rQueue, RQ_ASPA, &updateID);
+          LOG(LEVEL_INFO, "rpki queuing for aspa validation [uID:0x%08X]", updateID);
+        }
+      }
+
     }
+    else /* no aspath list */
+    {
+      LOG(LEVEL_WARNING, "Update 0x%08X is registered for ASPA but the "
+          "AS Path List is not found!", updateID);
+    } // end of if aspl
+
+    if (aspl)
+      free (aspl);
+
   }// end of else
 
 

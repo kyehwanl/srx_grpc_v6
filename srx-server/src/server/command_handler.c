@@ -823,6 +823,14 @@ static bool _processUpdateValidation(CommandHandler* cmdHandler,
       deleteAspathListEntry (aspl);
   }
 
+  // Invalid case
+  else if (aspaVal && (srxRes.aspaResult == SRx_RESULT_UNDEFINED)
+      && (defRes.result.aspaResult == SRx_RESULT_INVALID)
+      && (defRes.resSourceASPA = SRxRS_ROUTER))
+  {
+    LOG(LEVEL_INFO, "default result from a router is invalid, so sening it as well");
+    srxRes_mod.aspaResult = SRx_RESULT_INVALID;
+  }
 
   //
   // in case, path id already exists in AS Path Cache and srx result already 

@@ -44,8 +44,9 @@ var gStream pb.SRxApi_SendAndWaitProcessServer
 var gStream_verify pb.SRxApi_ProxyVerifyStreamServer
 var gBiStream_verify pb.SRxApi_ProxyVerifyBiStreamServer
 
-//var gCancel context.CancelFunc
+//var gbNotifySync bool
 
+//var gCancel context.CancelFunc
 //var done chan bool
 
 type Server struct {
@@ -303,8 +304,6 @@ func cbService_VerifyNotify(f int, b []byte) {
 				UpdateID:     *((*uint32)(unsafe.Pointer(&b[16]))),
 			}
 		}
-
-		<-time.After(1 * time.Millisecond)
 
 		if err := gBiStream_verify.Send(&resp); err != nil {
 			log.Printf("\033[0;32m++ [grpc server][cbService_VerifyNotify] grpc send error %#v  \033[0m \n", err)
@@ -671,7 +670,7 @@ func (s *Server) ProxyVerifyBiStream(stream pb.SRxApi_ProxyVerifyBiStreamServer)
 		default:
 		}
 
-		log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream] Waiting for Receviing verify request...\033[0m\n")
+		log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream](RECV) WAITING for Receiving verify request...\033[0m\n")
 		req, err := stream.Recv()
 
 		if err == io.EOF {
@@ -684,15 +683,20 @@ func (s *Server) ProxyVerifyBiStream(stream pb.SRxApi_ProxyVerifyBiStreamServer)
 			continue
 		}
 
-		log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream](RECV) grpc ID: %02x, length: %d, \n Data: %v \033[0m\n",
+		log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream](RECV) grpc ID: %02x, length: %d, \n Data: %#v \033[0m\n",
 			req.GrpcClientID, req.Length, req.Data)
 
 		retData := C.RET_DATA{}
 		retData = C.responseGRPC(C.int(req.Length), (*C.uchar)(unsafe.Pointer(&req.Data[0])), C.uint(req.GrpcClientID))
+		// retData comes from processValidationRequest_grpc()
 
+		// only enabled once first notification received, in order not to have accumulated dealy
+		//gbNotifySync = true
 		b := C.GoBytes(unsafe.Pointer(retData.data), C.int(retData.size))
-		log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream](SEND) return size: %d \n data: %#v \033[0m\n", retData.size, b)
+		log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream](SEND) VERIFY_NOTIFICATION_DATA .info: %x .size: %d \n .data: %#v \033[0m\n",
+			retData.info, retData.size, b)
 
+		// if sync resonpse case, retData should be NULL. So, no need to make notification
 		if retData.size == 0 {
 			continue
 		}
@@ -712,6 +716,12 @@ func (s *Server) ProxyVerifyBiStream(stream pb.SRxApi_ProxyVerifyBiStreamServer)
 			log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream](SEDN) send error %#v \033[0m \n", err)
 		}
 		log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream](SEND) sending stream data: %#v \033[0m\n", resp)
+
+		if retData.info == 0x1 {
+			log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream](SEND) Notification send set with Queue  \033[0m\n")
+			C.RunQueueCommand(C.int(req.Length), (*C.uchar)(unsafe.Pointer(&req.Data[0])), &retData, C.uint(req.GrpcClientID))
+		}
+
 	}
 
 	return nil
@@ -736,6 +746,7 @@ func Serve(grpc_port C.int) {
 
 	// make a channel with a capacity of 100
 	jobChan = make(chan Job, NUM_JobChan)
+	//gbNotifySync = false
 
 	log.Printf("++ [grpc server][Serve] received port number: %d \n", int32(grpc_port))
 

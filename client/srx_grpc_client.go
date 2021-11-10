@@ -760,7 +760,7 @@ func ImpleProxyVerifyBiStream() uint32 {
 
 	go func() {
 		for {
-			log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream](SEND) Waiting Verify request data ...\033[0m\n")
+			log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream](SEND) WAITING next Verify request data ...\033[0m\n")
 			select {
 			case job := <-chVerifyData:
 				workerId = job.workerId
@@ -770,7 +770,7 @@ func ImpleProxyVerifyBiStream() uint32 {
 					GrpcClientID: job.grpcClientID,
 				}
 
-				log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][workerID:%d](SEND) req data :%v\033[0m\n",
+				log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][workerID:%d](SEND) req data :%#v\033[0m\n",
 					job.workerId, req)
 				if err := stream.Send(&req); err != nil {
 					log.Printf("\033[1;33m+ [grpc client][ImpleProxyVerifyBiStream][workerID:%d](SEND) send error %v\033[0m\n",

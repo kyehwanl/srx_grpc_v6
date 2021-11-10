@@ -152,7 +152,7 @@ static bool processHandshake_grpc(unsigned char *data, RET_DATA *rt)
 static bool processValidationRequest_grpc(unsigned char *data, RET_DATA *rt, unsigned int grpcClientID)
 {
   LOG(LEVEL_INFO, HDR "[%s] function called, grpc clientID: %d \n", __FUNCTION__, grpcClientID);
-  LOG(LEVEL_INFO, HDR "Enter processValidationRequest", pthread_self());
+  LOG(LEVEL_INFO, HDR "Enter processValidationRequest");
     
   bool retVal = true;
   SRXRPOXY_BasicHeader_VerifyRequest* hdr =
@@ -477,9 +477,13 @@ static bool processValidationRequest_grpc(unsigned char *data, RET_DATA *rt, uns
   
     if ((doOriginVal || doPathVal || doAspaVal) && ((sendFlags & SRX_FLAG_ROA_BGPSEC_ASPA) > 0))
     {
+      rt->info = 0x1; // queue enable info
+      printf("rt info: %x\n", rt->info);
+
       // Only keep the validation flags.
       hdr->flags = sendFlags & SRX_FLAG_ROA_BGPSEC_ASPA;
 
+      /*
       // create the validation command!
       if (!queueCommand(grpcServiceHandler.cmdQueue, COMMAND_TYPE_SRX_PROXY, NULL, NULL,
             updateID, ntohl(hdr->length), (uint8_t*)hdr))
@@ -490,12 +494,43 @@ static bool processValidationRequest_grpc(unsigned char *data, RET_DATA *rt, uns
         RAISE_ERROR("Could not add validation request to command queue!");
         retVal = false;
       }
+      */
     }
 
     LOG(LEVEL_INFO, HDR "Exit processValidationRequest", pthread_self());
 
   }
   return retVal;
+}
+
+
+void RunQueueCommand(int size, unsigned char *data, RET_DATA *rt, unsigned int grpcClientID)
+{
+  
+  LOG(LEVEL_INFO, HDR "[%s] for Notification Queueing Command", __FUNCTION__);
+  printHex(size, data);
+
+  LOG(LEVEL_INFO, HDR "[%s] rt size: %d\n", __FUNCTION__, rt->size);
+  LOG(LEVEL_INFO, HDR "[%s] rt data: \n", __FUNCTION__);
+  printHex(rt->size, rt->data);
+
+  bool retVal = true;
+  SRXRPOXY_BasicHeader_VerifyRequest* hdr =
+    (SRXRPOXY_BasicHeader_VerifyRequest*)data;
+
+  SRXPROXY_VERIFY_NOTIFICATION* pdu = (SRXPROXY_VERIFY_NOTIFICATION*)rt->data;
+
+  SRxUpdateID updateID = 0;
+  updateID = ntohl(pdu->updateID);
+  LOG(LEVEL_INFO, HDR "[%s] updateID: %08x hdr length: %d\n", __FUNCTION__, updateID, ntohl(hdr->length));
+
+
+  if (!queueCommand(grpcServiceHandler.cmdQueue, COMMAND_TYPE_SRX_PROXY, NULL, NULL,
+        updateID, ntohl(hdr->length), (uint8_t*)hdr))
+  {
+    RAISE_ERROR("Could not add validation request to command queue!");
+    retVal = false;
+  }
 }
 
 static void _processUpdateSigning_grpc(unsigned char *data, RET_DATA *rt, unsigned int grpcClientID)

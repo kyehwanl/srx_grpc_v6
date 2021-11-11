@@ -728,6 +728,26 @@ func (s *Server) ProxyVerifyBiStream(stream pb.SRxApi_ProxyVerifyBiStreamServer)
 
 }
 
+func (s *Server) ProxyDeleteUpdate(ctx context.Context, req *pb.SerialPduDeleteUpdate) (*pb.PduResponse, error) {
+	log.Printf("++ [grpc server][ProxyDeleteUpdate] grpc Client ID: %02x, data length: %d, \n Data: %#v\n",
+		req.GrpcClientID, req.Length, req)
+
+	retData := C.RET_DATA{}
+	b := C.GoBytes(unsafe.Pointer(retData.data), C.int(retData.size))
+	fmt.Printf("return size: %d \t data: %#v\n", retData.size, b)
+
+	var updateId uint32
+
+	C.RunQueueCommand_uid(C.int(req.Length), (*C.uchar)(unsafe.Pointer(&req.Data[0])), C.uint32_t(updateId),
+		C.uint(req.GrpcClientID))
+
+	data := uint32(0x01)
+	return &pb.PduResponse{
+		Data:             b,
+		Length:           uint32(retData.size),
+		ValidationStatus: data}, nil
+}
+
 func NewServer(g *grpc.Server) *Server {
 	grpc.EnableTracing = false
 	server := &Server{

@@ -106,6 +106,8 @@ extern GoUint32 RunStream(GoSlice p0);
 
 extern GoUint32 RunProxyVerify(GoSlice p0, GoUint32 p1);
 
+extern GoUint8 ImpleProxyDeleteUpdate(GoSlice p0, GoUint32 p1);
+
 #ifdef __cplusplus
 }
 #endif

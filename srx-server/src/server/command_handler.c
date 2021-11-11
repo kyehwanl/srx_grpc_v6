@@ -918,11 +918,16 @@ static void _processDeleteUpdate(CommandHandler* cmdHandler,
   }
   else
   {
+#ifdef USE_GRPC
+    // TODO: send signal using callback to let server service to send Error to client
+
+#else
     // The update was either not found or the client was not associated to the
     // specified update.
     sendError(SRXERR_UPDATE_NOT_FOUND, item->serverSocket, item->client, false);
     LOG(LEVEL_NOTICE, "Deletion request for update [0x%08X] from client "
                       "[0x%02X] failed, update not found in update cache!");
+#endif
   }
 }
 

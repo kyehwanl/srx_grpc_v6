@@ -92,6 +92,7 @@
 #include "util/socket.h"
 #ifdef USE_GRPC
 #include "client/grpc_client_service.h"
+#include "client/libsrx_grpc_client.h"
 #endif
 
 #define HDR "(SRX API): "
@@ -349,6 +350,14 @@ void deleteUpdate(SRxProxy* proxy, uint16_t keep_window, SRxUpdateID updateID)
     hdr->keepWindow       = htons(keep_window);
     hdr->length           = htonl(length);
     hdr->updateIdentifier = htonl(updateID);
+
+#ifdef USE_GRPC
+  GoSlice verify_pdu = {(void*)hdr, (GoInt)length, (GoInt)length};
+  printf("---------- PDU (from Delete Update Request) --------: \n");
+  printHex(length, hdr);
+  int32_t result = ImpleProxyDeleteUpdate(verify_pdu, connHandler->grpcClientID);
+  LOG(LEVEL_INFO, HDR "[deleteUpdate] Result: %02x\n", result);
+#endif
 
     sendData(&connHandler->clSock, hdr, length);
 
@@ -1408,7 +1417,6 @@ bool isErrorCode(SRxProxyCommCode code)
 }
 
 #ifdef USE_GRPC
-#include "client/libsrx_grpc_client.h"
 bool connectToSRx_grpc(SRxProxy* proxy, const char* host, int port,
                   int handshakeTimeout, bool externalSocketControl)
 {

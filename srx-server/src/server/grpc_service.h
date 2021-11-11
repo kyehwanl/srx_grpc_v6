@@ -36,6 +36,7 @@ typedef struct {
 //int responseGRPC (int size, unsigned char* data);
 RET_DATA responseGRPC (int size, unsigned char* data, unsigned int grpcClientID);
 void RunQueueCommand(int size, unsigned char *data, RET_DATA *rt, unsigned int grpcClientID);
+void RunQueueCommand_uid(int size, unsigned char *data, uint32_t updateId, unsigned int grpcClientID);
 
 
 

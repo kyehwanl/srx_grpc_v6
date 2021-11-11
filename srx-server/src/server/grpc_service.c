@@ -484,12 +484,13 @@ static bool processValidationRequest_grpc(unsigned char *data, RET_DATA *rt, uns
       hdr->flags = sendFlags & SRX_FLAG_ROA_BGPSEC_ASPA;
 
       /*
-      // create the validation command!
       if (!queueCommand(grpcServiceHandler.cmdQueue, COMMAND_TYPE_SRX_PROXY, NULL, NULL,
             updateID, ntohl(hdr->length), (uint8_t*)hdr))
       //  TODO XXX: should I put a client thread to queue command function above instead of NULL ?
-      //    --> client thread (ClientThread*) was created and associated with 
-      //    the info from server_socket.c::runServerLoop()
+      //    --> client thread (ClientThread*) was created and associated with the info 
+      //    from server_socket.c::runServerLoop()
+      //
+      //    --> (Answer) No need, because _processUpdateValidation() doesn't use client thread at all
       {
         RAISE_ERROR("Could not add validation request to command queue!");
         retVal = false;
@@ -525,8 +526,46 @@ void RunQueueCommand(int size, unsigned char *data, RET_DATA *rt, unsigned int g
   LOG(LEVEL_INFO, HDR "[%s] updateID: %08x hdr length: %d\n", __FUNCTION__, updateID, ntohl(hdr->length));
 
 
+  // create the validation command!
   if (!queueCommand(grpcServiceHandler.cmdQueue, COMMAND_TYPE_SRX_PROXY, NULL, NULL,
         updateID, ntohl(hdr->length), (uint8_t*)hdr))
+  {
+    RAISE_ERROR("Could not add validation request to command queue!");
+    retVal = false;
+  }
+}
+
+void RunQueueCommand_uid(int size, unsigned char *data, uint32_t updateId, unsigned int grpcClientID)
+{
+
+  LOG(LEVEL_INFO, HDR "[%s] for General purpose Queueing Command", __FUNCTION__);
+  printHex(size, data);
+
+
+  bool retVal = true;
+  SRxUpdateID updateID = 0;
+
+  SRXPROXY_DELETE_UPDATE*  duHdr = NULL;
+
+  SRXPROXY_BasicHeader*    bhdr  = NULL; 
+  bhdr = (SRXPROXY_BasicHeader*)data;
+
+  switch (bhdr->type)                   
+  {                                     
+    case PDU_SRXPROXY_DELTE_UPDATE:
+      duHdr = (SRXPROXY_DELETE_UPDATE*)data;
+      updateID = ntohl(duHdr->updateIdentifier);
+      break;
+
+    default:
+      break;
+  }
+
+  LOG(LEVEL_INFO, HDR "[%s] updateID: %08x duHdr length: %d\n", __FUNCTION__, updateID, ntohl(duHdr->length));
+
+  // create the validation command!
+  if (!queueCommand(grpcServiceHandler.cmdQueue, COMMAND_TYPE_SRX_PROXY, NULL, NULL,
+        updateID, ntohl(duHdr->length), (uint8_t*)duHdr))
   {
     RAISE_ERROR("Could not add validation request to command queue!");
     retVal = false;

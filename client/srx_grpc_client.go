@@ -854,6 +854,29 @@ func ImpleProxyVerifyBiStream() uint32 {
 	return 0
 }
 
+//export ImpleProxyDeleteUpdate
+func ImpleProxyDeleteUpdate(data []byte, grpcClientID uint32) bool {
+
+	cli := client.cli
+	log.Printf("++ [grpc client][ImpleProxyDeleteUpdate] clientID: %0x input data : %#v \n", grpcClientID, data)
+
+	req := pb.SerialPduDeleteUpdate{
+		Data:         data,
+		Length:       uint32(len(data)),
+		GrpcClientID: grpcClientID,
+	}
+
+	resp, err := cli.ProxyDeleteUpdate(context.Background(), &req)
+
+	if err != nil {
+		log.Printf("could not receive: %v", err)
+		return false
+	}
+
+	log.Printf(" response Status:%v, resp: %#v\n", resp.ValidationStatus, resp)
+	return true
+}
+
 func main() {
 	///* FIXME XXX
 

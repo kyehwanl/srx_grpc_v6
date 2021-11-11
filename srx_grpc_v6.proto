@@ -17,6 +17,7 @@ service SRxApi {
   rpc ProxyVerifyStream (ProxyVerifyRequest) returns (stream ProxyVerifyNotify) {}
   rpc ProxyVerifyBiStream (stream ProxyVerifyRequest) returns (stream ProxyVerifyNotify) {}
   rpc ProxyStream (PduRequest) returns (stream PduResponse) {}
+  rpc ProxyDeleteUpdate(SerialPduDeleteUpdate ) returns (PduResponse ) {}
 }
 
 
@@ -140,4 +141,177 @@ message ProxyVerifyRequest {
 }
 
 
+message PduProxyPeerChange {
+  uint32 type = 1;
+  uint32 reserved16 = 2;
+  uint32 changeType = 3;
+  uint32 reserved32 = 4;
+  uint32 length = 5;
+  uint32 peerAS = 6;
+}
+
+message PduProxySyncRequest {
+  uint32 type = 1;
+  uint32 reserved = 2;
+  uint32 zero   = 3;
+  uint32 length = 4;
+}
+
+message PduProxyError {
+  uint32 type = 1;
+  uint32 errorCode = 2;
+  uint32 reserved = 3;
+  uint32 zero   = 4;
+  uint32 length = 5;
+}
+
+message PduProxyDeleteUpdate {
+  uint32 type = 1;
+  uint32 keepWindow = 2;
+  uint32 reserved = 3;
+  uint32 zero = 4;
+  uint32 length = 5;
+  uint32 updateIdentifier = 6;
+}
+
+message SerialPduDeleteUpdate {
+  bytes data = 1;
+  uint32 length = 2;
+  uint32 grpcClientID = 3;
+}
+/*
+* The SRXPROXY header that 
+typedef struct {
+  // The type of the SRx packet.
+  uint8_t  type;
+  uint16_t reserved16;
+  uint8_t  reserved8;
+  uint32_t reserved32;
+  // The total length of this header in bytes.
+  uint32_t length;
+  // MUCH MORE DATA FOLLOWS, SEE srx_packet.h
+} __attribute__((packed)) SRXPROXY_BasicHeader;
+
+
+ * This struct specifies the hello packet
+typedef struct {
+  uint8_t    type;              // 0
+  uint16_t   version;
+  uint8_t    reserved8;
+  uint32_t   zero32;
+  uint32_t   length;            // Variable 24(+) Bytes
+  uint32_t   proxyIdentifier;
+  uint32_t   asn;
+  uint32_t   noPeers;
+  PeerASList peerAS;
+} __attribute__((packed)) SRXPROXY_HELLO;
+
+
+ * This struct specifies the hello response packet
+typedef struct {
+  uint8_t   type;              // 1
+  uint16_t  version;
+  uint8_t   reserved8;
+  uint32_t  zero32;
+  uint32_t  length;            
+  uint32_t  proxyIdentifier;    // 16 Bytes
+} __attribute__((packed)) SRXPROXY_HELLO_RESPONSE;
+
+
+ * This struct specifies the goodbye packet
+typedef struct {
+  uint8_t   type;              // 2
+  uint16_t  keepWindow;
+  uint8_t   reserved8;
+  uint32_t  zero32;
+  uint32_t  length;            // 12 Bytes
+} __attribute__((packed)) SRXPROXY_GOODBYE;
+
+
+ * This struct is a helper to read validation requests easier.
+typedef struct {
+  uint8_t       type;          // 3 and 4
+  uint8_t       flags;
+  uint8_t       roaResSrc;
+  uint8_t       bgpsecResSrc;
+  uint8_t       aspaResSrc;   // reserved for ASPA validation
+  uint8_t       reserved8;
+  uint8_t       asType;
+  uint8_t       asRelType;
+  uint32_t      length;
+  uint8_t       roaDefRes;
+  uint8_t       bgpsecDefRes;
+  uint8_t       aspaDefRes; // reserved for ASPA validation
+  uint8_t       prefixLen;
+  uint32_t      requestToken; // Added with protocol version 1.0
+} __attribute__((packed)) SRXRPOXY_BasicHeader_VerifyRequest;
+
+
+ * This struct specifies the Verify request IPv4 packet
+typedef struct {
+  SRXRPOXY_BasicHeader_VerifyRequest common; // type = 3, length=Variable 68+
+  IPv4Address      prefixAddress;
+  uint32_t         originAS;
+  uint32_t         bgpsecLength;
+  BGPSECValReqData bgpsecValReqData;
+} __attribute__((packed)) SRXPROXY_VERIFY_V4_REQUEST;
+
+ 
+ * This struct specifies the verification notification packet
+typedef struct {
+  uint8_t     type;            // 6
+  uint8_t     resultType;
+  uint8_t     roaResult;
+  uint8_t     bgpsecResult;
+  uint8_t     aspaResult;
+  uint8_t     reserved8;
+  uint16_t    zero16;
+  uint32_t    length;          // 20 Bytes
+  uint32_t    requestToken; // Added with protocol version 1.0
+  SRxUpdateID updateID;
+} __attribute__((packed)) SRXPROXY_VERIFY_NOTIFICATION;
+
+
+ * This struct specifies the synchronization request packet
+typedef struct {
+  uint8_t     type;            // 9
+  uint16_t    reserved16;
+  uint8_t     changeType;
+  uint32_t    reserved32;
+  uint32_t    length;          // 16 Bytes
+  uint32_t    peerAS;
+} __attribute__((packed)) SRXPROXY_PEER_CHANGE;
+
+
+ * This struct specifies the synchronization request packet
+typedef struct {
+  uint8_t     type;            // 10
+  uint16_t    reserved16;
+  uint8_t     reserved8;
+  uint32_t    zero32;
+  uint32_t    length;          // 12 Bytes
+} __attribute__((packed)) SRXPROXY_SYNCH_REQUEST;
+
+
+ * This struct specifies the error packet
+typedef struct {
+  uint8_t     type;            // 11
+  uint16_t    errorCode;
+  uint8_t     reserved8;
+  uint32_t    zero32;
+  uint32_t    length;          // 12 Bytes
+} __attribute__((packed)) SRXPROXY_ERROR;
+
+
+ * This struct specifies the delete update packet
+typedef struct {
+  uint8_t     type;            // 8
+  uint16_t    keepWindow;
+  uint8_t     reserved8;
+  uint32_t    zero32;
+  uint32_t    length;          // 16 Bytes
+  uint32_t    updateIdentifier;
+} __attribute__((packed)) SRXPROXY_DELETE_UPDATE;
+
+*/
 

@@ -198,6 +198,15 @@ func cb_proxyStream(f C.int, v unsafe.Pointer) {
 
 }
 
+func cb_proxyCallbackHandler(f C.int, v unsafe.Pointer) {
+	log.Println("\033[0;32m++ [grpc server][cb_proxyCallbackHandler]  General Purposes callback function\033[0m")
+
+	b := C.GoBytes(unsafe.Pointer(v), f)
+
+	MyCallback(int(f), b)
+
+}
+
 func MyCallback(f int, b []byte) {
 
 	fmt.Printf("++ [grpc server] My callback function - received arg: %d, %#v \n", f, b)
@@ -650,7 +659,7 @@ func (s *Server) ProxyVerifyStream(pdu *pb.ProxyVerifyRequest, stream pb.SRxApi_
 func (s *Server) ProxyVerifyBiStream(stream pb.SRxApi_ProxyVerifyBiStreamServer) error {
 	log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream] stream: %#v \033[0m \n", stream)
 
-	gBiStream_verify = stream // the function cbVerifyNotify() will this variable for callback
+	gBiStream_verify = stream // the function cbService_VerifyNotify() will use this variable for callback
 	ctx := stream.Context()
 	//ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	//defer cancel()

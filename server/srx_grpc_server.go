@@ -40,7 +40,7 @@ import (
 )
 
 var port = flag.Int("port", 50000, "The server port")
-var gStream pb.SRxApi_SendAndWaitProcessServer
+
 var gStream_verify pb.SRxApi_ProxyVerifyStreamServer
 var gBiStream_verify pb.SRxApi_ProxyVerifyBiStreamServer
 
@@ -60,6 +60,7 @@ type StreamData struct {
 
 var chGbsData chan StreamData
 var chProxyStreamData chan StreamData
+var chProxySendAndWaitProcessData chan pb.PduResponse
 
 /* ---------- Worker Pool Start Block ---------------*/
 /*
@@ -198,48 +199,45 @@ func cb_proxyStream(f C.int, v unsafe.Pointer) {
 
 }
 
-func cb_proxyCallbackHandler(f C.int, v unsafe.Pointer) {
-	log.Println("\033[0;32m++ [grpc server][cb_proxyCallbackHandler]  General Purposes callback function\033[0m")
+//export cb_proxyCallbackHandler_Service
+func cb_proxyCallbackHandler_Service(f C.int, v unsafe.Pointer) {
+	log.Println("\033[0;32m++ [grpc server][cb_proxyCallbackHandler_Service]  General Purposes callback function\033[0m")
 
 	b := C.GoBytes(unsafe.Pointer(v), f)
 
-	MyCallback(int(f), b)
+	go proxyCallbackHandler(int(f), b)
 
 }
 
-func MyCallback(f int, b []byte) {
-
-	fmt.Printf("++ [grpc server] My callback function - received arg: %d, %#v \n", f, b)
-
+func proxyCallbackHandler(f int, b []byte) {
+	fmt.Printf("++ [grpc server][proxyCallbackHandler]  received arg: %d, %#v \n", f, b)
 	if f == 0 && b == nil {
 		_, _, line, _ := runtime.Caller(0)
-		log.Printf("++ [grpc server][:%d] close stream ", line)
+		log.Printf("++ [grpc server][:%d] length 0 - no data ", line)
 		//done <- true
-		//return
+		return
 	}
-
-	//b := []byte{0x10, 0x11, 0x40, 0x42, 0xAB, 0xCD, 0xEF}
-	resp := pb.PduResponse{
-		Data:             b,
-		Length:           uint32(len(b)),
-		ValidationStatus: 2,
-	}
-
-	if gStream != nil {
-		if resp.Data == nil && resp.Length == 0 {
-			_, _, line, _ := runtime.Caller(0)
-			log.Printf("++ [grpc server][:%d] close stream ", line)
-			//close(done)
-		} else {
-			if err := gStream.Send(&resp); err != nil {
-				log.Printf("send error %v", err)
-			}
-			_, _, line, _ := runtime.Caller(0)
-			log.Printf("++ [grpc server][:%d] sending stream data", line+1)
+	var resp pb.PduResponse
+	switch b[0] {
+	case C.PDU_SRXPROXY_ERROR:
+		resp = pb.PduResponse{
+			Data:             b,
+			Length:           uint32(len(b)),
+			ValidationStatus: uint32(binary.BigEndian.Uint16(b[1:3])), // error code
 		}
-
+		/*
+			typedef struct {
+			  uint8_t     type;            // 11
+			  uint16_t    errorCode;
+			  uint8_t     reserved8;
+			  uint32_t    zero32;
+			  uint32_t    length;          // 12 Bytes
+			} __attribute__((packed)) SRXPROXY_ERROR;
+		*/
 	}
 
+	chProxySendAndWaitProcessData <- resp
+	log.Printf("\033[0;32m++ [grpc server][proxyCallbackHandler] work done  \033[0m \n")
 }
 
 func cbVerifyNotify(f int, b []byte) {
@@ -347,22 +345,16 @@ func (s *Server) SendPacketToSRxServer(ctx context.Context, pdu *pb.PduRequest) 
 
 func (s *Server) SendAndWaitProcess(pdu *pb.PduRequest, stream pb.SRxApi_SendAndWaitProcessServer) error {
 
-	gStream = stream
 	ctx := stream.Context()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	done := make(chan bool)
+	//ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	//defer cancel()
 	go func() {
 		<-ctx.Done()
 		if err := ctx.Err(); err != nil {
 			log.Println(err)
 		}
-
 		_, _, line, _ := runtime.Caller(0)
 		fmt.Printf("+ [%d] server context done\n", line+1)
-
-		close(done)
-		// BUG NOTE : channel panic: close of closed channel
 		/*
 			_, ok := <-done
 			if ok == true {
@@ -372,34 +364,45 @@ func (s *Server) SendAndWaitProcess(pdu *pb.PduRequest, stream pb.SRxApi_SendAnd
 		*/
 	}()
 
-	data := uint32(0x09)
-	//C.setLogMode(3)
-	fmt.Printf("stream server: %s %#v\n", pdu.Data, pdu)
 	//C.setLogMode(7)
-	fmt.Println("calling SRxServer responseGRPC()")
+	fmt.Printf("stream server: %s %#v\n", pdu.Data, pdu)
 
-	retData := C.RET_DATA{}
-	retData = C.responseGRPC(C.int(pdu.Length), (*C.uchar)(unsafe.Pointer(&pdu.Data[0])), 0)
+	/*
+		data := uint32(0x09)
+		retData := C.RET_DATA{}
+		retData = C.responseGRPC(C.int(pdu.Length), (*C.uchar)(unsafe.Pointer(&pdu.Data[0])), 0)
 
-	b := C.GoBytes(unsafe.Pointer(retData.data), C.int(retData.size))
-	fmt.Printf("return size: %d \t data: %#v\n", retData.size, b)
+		b := C.GoBytes(unsafe.Pointer(retData.data), C.int(retData.size))
+		fmt.Printf("return size: %d \t data: %#v\n", retData.size, b)
 
-	resp := pb.PduResponse{
-		Data:             b,
-		Length:           uint32(retData.size),
-		ValidationStatus: data,
+		resp := pb.PduResponse{
+			Data:             b,
+			Length:           uint32(retData.size),
+			ValidationStatus: data,
+		}
+	*/
+
+	for {
+		select {
+		case resp, ok := <-chProxySendAndWaitProcessData:
+			if ok {
+				log.Printf("++ [grpc server][ProxySendAndWaitProcess] channel event resp message : %#v\n", resp)
+
+				if err := stream.Send(&resp); err != nil {
+					log.Printf("++ [grpc server][ProxySendAndWaitProcess] Stream Terminated with the send error %v \n", err)
+					return err
+				}
+			} else {
+				log.Printf("++ [grpc server][ProxySendAndWaitProcess] Channel Closed and Stream terminated\n")
+				return nil
+			}
+		case <-ctx.Done():
+			log.Printf("++ [grpc server][ProxySendAndWaitProcess] Terminated due to context error \n")
+			return nil
+		}
 	}
 
-	if err := stream.Send(&resp); err != nil {
-		log.Printf("send error %v", err)
-	}
-	log.Printf("sending stream data")
-
-	//time.Sleep(5 * time.Second)
-
-	<-done
-	log.Printf("Finished with RPC send [Send_Wait_Process] \n")
-
+	log.Printf("++ [grpc server][ProxySendAndWaitProcess] Finished with RPC send Send_Wait_Process... \n")
 	return nil
 }
 
@@ -542,7 +545,7 @@ func (s *Server) ProxyStream(pdu *pb.PduRequest, stream pb.SRxApi_ProxyStreamSer
 					return err
 				}
 			} else {
-				log.Printf("++ [grpc server][ProxyGoodByeStream] Channel Closed and Stream terminated\n")
+				log.Printf("++ [grpc server][ProxyStream] Channel Closed and Stream terminated\n")
 				// TODO: instead of nil, it should have error value returned
 				//		How To define Error ?
 				return nil
@@ -740,16 +743,38 @@ func (s *Server) ProxyVerifyBiStream(stream pb.SRxApi_ProxyVerifyBiStreamServer)
 func (s *Server) ProxyDeleteUpdate(ctx context.Context, req *pb.SerialPduDeleteUpdate) (*pb.PduResponse, error) {
 	log.Printf("++ [grpc server][ProxyDeleteUpdate] grpc Client ID: %02x, data length: %d, \n Data: %#v\n",
 		req.GrpcClientID, req.Length, req)
+	/*
+		this structure is the serialize data stream from client 'req'
+
+			typedef struct {
+			  uint8_t     type;            // 8
+			  uint16_t    keepWindow;
+			  uint8_t     reserved8;
+			  uint32_t    zero32;
+			  uint32_t    length;          // 16 Bytes
+			  uint32_t    updateIdentifier;
+			} __attribute__((packed)) SRXPROXY_DELETE_UPDATE;
+
+				SRXPROXY_DELETE_UPDATE* hdr = malloc(length);
+				hdr->type             = PDU_SRXPROXY_DELTE_UPDATE;
+				hdr->keepWindow       = htons(keep_window);
+				hdr->length           = htonl(length);
+				hdr->updateIdentifier = htonl(updateID);
+	*/
+	//buf := make([]byte, 4) // uint32 updateIdentifier
+	//binary.BigEndian.PutUint32(buf[0:4], pdu.data[12])
 
 	retData := C.RET_DATA{}
 	b := C.GoBytes(unsafe.Pointer(retData.data), C.int(retData.size))
 	fmt.Printf("return size: %d \t data: %#v\n", retData.size, b)
 
 	var updateId uint32
+	updateId = *((*uint32)(unsafe.Pointer(&req.Data[16])))
 
 	C.RunQueueCommand_uid(C.int(req.Length), (*C.uchar)(unsafe.Pointer(&req.Data[0])), C.uint32_t(updateId),
 		C.uint(req.GrpcClientID))
 
+	// Response should be any data
 	data := uint32(0x01)
 	return &pb.PduResponse{
 		Data:             b,
@@ -772,6 +797,7 @@ func Serve(grpc_port C.int) {
 	// NOTE: here init handling
 	chGbsData = make(chan StreamData) // channel for Proxy GoodbyteStream
 	chProxyStreamData = make(chan StreamData)
+	chProxySendAndWaitProcessData = make(chan pb.PduResponse)
 
 	// make a channel with a capacity of 100
 	jobChan = make(chan Job, NUM_JobChan)

@@ -432,12 +432,13 @@ void print_search(TrieNode* root, char* word) {
 // 
 // external API for db loopkup
 //
+#define MAX_ASN_LENGTH 7
 ASPA_ValidationResult ASPA_DB_lookup(ASPA_DBManager* self, uint32_t customerAsn, 
                                      uint32_t providerAsn, uint8_t afi )
 {
   LOG(LEVEL_DEBUG, FILE_LINE_INFO " ASPA DB Lookup called");
 
-  char strCusAsn[6] = {};
+  char strCusAsn[MAX_ASN_LENGTH] = {};
   sprintf(strCusAsn, "%d", customerAsn);  
 
   ASPA_Object *obj = findAspaObject(self, strCusAsn);

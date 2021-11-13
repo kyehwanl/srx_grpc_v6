@@ -575,6 +575,9 @@ func RunStream(data []byte) uint32 {
 			fmt.Println()
 			//r = resp
 
+			// TODO : need to callback to the client to transfer the server's message
+			// callback_client_process()
+
 			if resp.Data == nil && resp.Length == 0 {
 				_, _, line, _ := runtime.Caller(0)
 				log.Printf("[client:%d] close stream ", line+1)

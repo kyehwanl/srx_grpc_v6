@@ -2683,6 +2683,7 @@ bool handleSRxValidationResult (SRxUpdateID updateID, uint32_t localID,
   }
 
 
+    deleteUpdate(bgp->srxProxy, bgp->srx_keepWindow, updateID);
   return retVal;
 }
 

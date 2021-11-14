@@ -165,6 +165,7 @@ func InitSRxGrpc(addr string) bool {
 	InitWorkerPool()
 
 	go ImpleProxyVerifyBiStream()
+	go ImpleSendAndWaitProcessStream(nil)
 
 	//fmt.Printf("cli : %#v\n", cli)
 	//fmt.Printf("client.cli : %#v\n", client.cli)
@@ -276,6 +277,26 @@ func RunProxyHello(data []byte) (*C.uchar, uint32) {
 	log.Printf("+ [grpc client][RunProxyHello] Received Hello Response message: %#v\n", cb)
 	//return (*C.uchar)(unsafe.Pointer(&buf[0]))
 	return &cb[0], resp.ProxyIdentifier
+}
+
+type Go_PduProxyError struct {
+	_type      uint8
+	_errorCode uint16
+	_reserved  uint8
+	_zero      uint32
+	_length    uint32
+}
+
+func (g *Go_PduProxyError) Pack(out unsafe.Pointer) {
+	buf := &bytes.Buffer{}
+	binary.Write(buf, binary.LittleEndian, g)
+	l := buf.Len()
+	o := (*[1 << 20]C.uchar)(out)
+
+	for i := 0; i < l; i++ {
+		b, _ := buf.ReadByte()
+		o[i] = C.uchar(b)
+	}
 }
 
 type Go_ProxySyncRequest struct {
@@ -534,22 +555,22 @@ func RunProxyStream(data []byte, grpcClientID uint32) uint32 {
 	return 0
 }
 
-//export RunStream
-func RunStream(data []byte) uint32 {
+//export ImpleSendAndWaitProcessStream
+func ImpleSendAndWaitProcessStream(data []byte) uint32 {
 
 	cli := client.cli
-	fmt.Printf("client data: %#v\n", client)
+	log.Printf("\033[0;31m+ [grpc client][SendAndWaitProcess] client data: %#v\n", client)
 
 	if data == nil {
 		fmt.Println("#############")
 		data = []byte(defaultName)
 	}
 
-	fmt.Printf("input data for stream response: %#v\n", data)
+	log.Printf("\033[0;31m+ [grpc client][SendAndWaitProcess] input data for stream response: %#v\033[0m\n", data)
 
 	stream, err := cli.SendAndWaitProcess(context.Background(), &pb.PduRequest{Data: data, Length: uint32(len(data))})
 	if err != nil {
-		log.Printf("open stream error %v", err)
+		log.Printf("\033[0;31m+ [grpc client][SendAndWaitProcess] open stream error %v \033[0m \n", err)
 	}
 
 	ctx := stream.Context()
@@ -557,50 +578,66 @@ func RunStream(data []byte) uint32 {
 	//var r pb.PduResponse
 
 	go func() {
+		defer close(done)
 		for {
 			resp, err := stream.Recv()
 			if err == io.EOF {
-				close(done)
-				log.Printf("[client] EOF close ")
+				log.Printf("\033[0;31m+ [grpc client][SendAndWaitProcess] EOF close \033[0m \n")
 				return
 			}
 			if err != nil {
-				log.Printf("can not receive %v", err)
+				log.Printf("\033[0;31m+ [grpc client][SendAndWaitProcess] can not receive %v \033[0m \n", err)
+				return
 			}
 
 			// NOTE : receive process here
-			fmt.Printf("+ data : %#v\n", resp.Data)
-			fmt.Printf("+ size : %#v\n", resp.Length)
-			fmt.Printf("+ status: %#v\n", resp.ValidationStatus)
-			fmt.Println()
+			log.Printf("\033[0;31m+ [grpc client][SendAndWaitProcess] data  : %#v\033[0m\n", resp.Data)
+			log.Printf("\033[0;31m+ [grpc client][SendAndWaitProcess] size  : %#v\033[0m\n", resp.Length)
+			log.Printf("\033[0;31m+ [grpc client][SendAndWaitProcess] status: %#v\033[0m\n", resp.ValidationStatus)
 			//r = resp
-
-			// TODO : need to callback to the client to transfer the server's message
-			// callback_client_process()
 
 			if resp.Data == nil && resp.Length == 0 {
 				_, _, line, _ := runtime.Caller(0)
-				log.Printf("[client:%d] close stream ", line+1)
+				log.Printf("\033[0;31m+ [grpc client][SendAndWaitProcess](:%d) close stream \033[0m \n", line+1)
 				//done <- true
 				//stream.CloseSend()
-				close(done)
+			} else {
+
+				switch resp.Data[0] {
+				case C.PDU_SRXPROXY_ERROR:
+					log.Printf("\033[0;31m+ [grpc client][SendAndWaitProcess] Error Message Received from server\033[0m\n")
+					go_ppe := &Go_PduProxyError{
+						_type:      resp.Data[0],
+						_errorCode: *((*uint16)(unsafe.Pointer(&resp.Data[1]))),
+						_reserved:  resp.Data[3],
+						_zero:      *((*uint32)(unsafe.Pointer(&resp.Data[4]))),
+						_length:    *((*uint32)(unsafe.Pointer(&resp.Data[8]))),
+					}
+					ppe := (*C.SRXPROXY_ERROR)(C.malloc(C.sizeof_SRXPROXY_ERROR))
+					defer C.free(unsafe.Pointer(ppe))
+					go_ppe.Pack(unsafe.Pointer(ppe))
+
+					//  call C function in client implementations
+					//  callback to the client to transfer the server's message
+					C.processError_grpc(ppe)
+				}
+
 			}
-		}
+		} // end of for loop
+
 	}()
 
 	go func() {
 		<-ctx.Done()
-		log.Printf("+ Client Context Done")
 		if err := ctx.Err(); err != nil {
-			log.Println(err)
+			log.Println("\033[0;31m+ [grpc client][SendAndWaitProcess]\033[0m", err)
 		}
-		fmt.Printf("+ client context done\n")
-		//close(done)
+		log.Printf("\033[0;31m+ [grpc client][SendAndWaitProcess] client context done\033[0m\n")
 	}()
 
 	<-done
 	//log.Printf("Finished with Resopnse valie: %d", uint32(resp.ValidationStatus))
-	log.Printf("Finished with Resopnse valie")
+	log.Printf("\033[0;31m+ [grpc client][SendAndWaitProcess] Finished \033[0m\n")
 	//fmt.Printf("Finished with Resopnse valie: %d", uint32(resp.ValidationStatus))
 	//close(ctx.Done)
 

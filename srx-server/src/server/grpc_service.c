@@ -561,9 +561,13 @@ void RunQueueCommand_uid(int size, unsigned char *data, uint32_t updateId, unsig
       break;
   }
 
-  LOG(LEVEL_INFO, HDR "[%s] updateID: %08x duHdr length: %d\n", __FUNCTION__, updateID, ntohl(duHdr->length));
+  uint8_t  clientID    = 0;
+  clientID = findClientID(grpcServiceHandler.svrConnHandler, grpcClientID);
+  LOG(LEVEL_INFO, HDR "[%s] updateID: %08x duHdr length: %d clientID: %d\n",
+      __FUNCTION__, updateID, ntohl(duHdr->length), clientID);
 
   // create the validation command!
+  // TODO: put the client thread as 4th parameter, otherwise segmentation fault at _processDeleteUpdate
   if (!queueCommand(grpcServiceHandler.cmdQueue, COMMAND_TYPE_SRX_PROXY, NULL, NULL,
         updateID, ntohl(duHdr->length), (uint8_t*)duHdr))
   {

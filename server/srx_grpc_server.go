@@ -345,6 +345,8 @@ func (s *Server) SendPacketToSRxServer(ctx context.Context, pdu *pb.PduRequest) 
 
 func (s *Server) SendAndWaitProcess(pdu *pb.PduRequest, stream pb.SRxApi_SendAndWaitProcessServer) error {
 
+	log.Printf("\033[0;31m++ [grpc server][SendAndWaitProcess] stream server received pdu: %s %#v \033[0m\n", pdu.Data, pdu)
+
 	ctx := stream.Context()
 	//ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	//defer cancel()
@@ -354,7 +356,7 @@ func (s *Server) SendAndWaitProcess(pdu *pb.PduRequest, stream pb.SRxApi_SendAnd
 			log.Println(err)
 		}
 		_, _, line, _ := runtime.Caller(0)
-		fmt.Printf("+ [%d] server context done\n", line+1)
+		log.Printf("\033[0;31m++ [grpc server][SendAndWaitProcess](:%d) server context done \033[0m\n", line+1)
 		/*
 			_, ok := <-done
 			if ok == true {
@@ -364,45 +366,44 @@ func (s *Server) SendAndWaitProcess(pdu *pb.PduRequest, stream pb.SRxApi_SendAnd
 		*/
 	}()
 
-	//C.setLogMode(7)
-	fmt.Printf("stream server: %s %#v\n", pdu.Data, pdu)
-
 	/*
-		data := uint32(0x09)
-		retData := C.RET_DATA{}
-		retData = C.responseGRPC(C.int(pdu.Length), (*C.uchar)(unsafe.Pointer(&pdu.Data[0])), 0)
+		//C.setLogMode(7)
+			data := uint32(0x09)
+			retData := C.RET_DATA{}
+			retData = C.responseGRPC(C.int(pdu.Length), (*C.uchar)(unsafe.Pointer(&pdu.Data[0])), 0)
 
-		b := C.GoBytes(unsafe.Pointer(retData.data), C.int(retData.size))
-		fmt.Printf("return size: %d \t data: %#v\n", retData.size, b)
+			b := C.GoBytes(unsafe.Pointer(retData.data), C.int(retData.size))
+			fmt.Printf("return size: %d \t data: %#v\n", retData.size, b)
 
-		resp := pb.PduResponse{
-			Data:             b,
-			Length:           uint32(retData.size),
-			ValidationStatus: data,
-		}
+			resp := pb.PduResponse{
+				Data:             b,
+				Length:           uint32(retData.size),
+				ValidationStatus: data,
+			}
 	*/
 
 	for {
+		log.Printf("\033[0;31m++ [grpc server][SendAndWaitProcess] Waiting SendAndWaitProcess Channel Event ...\033[0m\n")
 		select {
 		case resp, ok := <-chProxySendAndWaitProcessData:
 			if ok {
-				log.Printf("++ [grpc server][ProxySendAndWaitProcess] channel event resp message : %#v\n", resp)
+				log.Printf("\033[0;31m++ [grpc server][SendAndWaitProcess] channel event resp: %#v \033[0m\n", resp)
 
 				if err := stream.Send(&resp); err != nil {
-					log.Printf("++ [grpc server][ProxySendAndWaitProcess] Stream Terminated with the send error %v \n", err)
+					log.Printf("\033[0;31m++ [grpc server][SendAndWaitProcess] Stream Terminated with the send error %v \033[0m\n", err)
 					return err
 				}
 			} else {
-				log.Printf("++ [grpc server][ProxySendAndWaitProcess] Channel Closed and Stream terminated\n")
+				log.Printf("\033[0;31m++ [grpc server][SendAndWaitProcess] Channel Closed and Stream terminated\033[0m\n")
 				return nil
 			}
 		case <-ctx.Done():
-			log.Printf("++ [grpc server][ProxySendAndWaitProcess] Terminated due to context error \n")
+			log.Printf("\033[0;31m++ [grpc server][SendAndWaitProcess] Terminated due to context error \033[0m \n")
 			return nil
 		}
 	}
 
-	log.Printf("++ [grpc server][ProxySendAndWaitProcess] Finished with RPC send Send_Wait_Process... \n")
+	log.Printf("\033[0;31m++ [grpc server][SendAndWaitProcess] Finished with RPC send Send_Wait_Process...\033[0m\n")
 	return nil
 }
 
@@ -769,7 +770,8 @@ func (s *Server) ProxyDeleteUpdate(ctx context.Context, req *pb.SerialPduDeleteU
 	fmt.Printf("return size: %d \t data: %#v\n", retData.size, b)
 
 	var updateId uint32
-	updateId = *((*uint32)(unsafe.Pointer(&req.Data[16])))
+	updateId = *((*uint32)(unsafe.Pointer(&req.Data[12])))
+	fmt.Printf("update ID: %#v\n", updateId)
 
 	C.RunQueueCommand_uid(C.int(req.Length), (*C.uchar)(unsafe.Pointer(&req.Data[0])), C.uint32_t(updateId),
 		C.uint(req.GrpcClientID))

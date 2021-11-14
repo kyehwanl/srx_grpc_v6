@@ -198,3 +198,52 @@ void processSignNotify_grpc(SRXPROXY_SIGNATURE_NOTIFICATION* hdr)
     }
 }
 
+
+
+
+extern void callCMgmtHandler(SRxProxy* proxy, SRxProxyCommCode mainCode, int subCode);
+
+void processError_grpc(SRXPROXY_ERROR* hdr)
+{
+  LOG(LEVEL_INFO, HDR "+++ [%s] called in proxy: %p ", __FUNCTION__, g_proxy);
+  SRxProxy* proxy = g_proxy;
+
+  uint32_t errCode = ntohs(hdr->errorCode);
+  switch (errCode)
+  {
+    case SRXERR_WRONG_VERSION:
+      LOG(LEVEL_ERROR, "SRx server reports compatibility issues in the "
+          "communication protocol!");
+      callCMgmtHandler(proxy, COM_ERR_PROXY_COMPATIBILITY,
+          COM_PROXY_NO_SUBCODE);
+      break;
+    case SRXERR_DUPLICATE_PROXY_ID:
+      LOG(LEVEL_ERROR, "SRx server reports a conflict with the proxy id!");
+      callCMgmtHandler(proxy, COM_ERR_PROXY_DUPLICATE_PROXY_ID,
+          COM_PROXY_NO_SUBCODE);
+      break;
+    case SRXERR_INVALID_PACKET:
+      LOG(LEVEL_ERROR, "SRx server received an invalid packet!");
+      callCMgmtHandler(proxy, COM_ERR_PROXY_SERVER_ERROR, SVRINVPKG);
+      break;
+    case SRXERR_INTERNAL_ERROR:
+      LOG(LEVEL_ERROR, "SRx server reports an internal error!");
+      callCMgmtHandler(proxy, COM_ERR_PROXY_SERVER_ERROR, SVRINTRNL);
+      break;
+    case SRXERR_ALGO_NOT_SUPPORTED:
+      LOG(LEVEL_ERROR, "SRx server reports the requested signature algorithm "
+          "is not supported!");
+      callCMgmtHandler(proxy, COM_ERR_PROXY_UNKNOWN_ALGORITHM,
+          COM_PROXY_NO_SUBCODE);
+      break;
+    case SRXERR_UPDATE_NOT_FOUND:
+      LOG(LEVEL_NOTICE, "SRx server reports the last delete/signature request "
+          "was aborted, the update could not be found!");
+      callCMgmtHandler(proxy, COM_ERR_PROXY_UNKNOWN_UPDATE,
+          COM_PROXY_NO_SUBCODE);
+      break;
+    default:
+      RAISE_ERROR("SRx server reports an unknown Error(%u)!", errCode);
+      callCMgmtHandler(proxy, COM_ERR_PROXY_UNKNOWN, errCode);
+  }
+}

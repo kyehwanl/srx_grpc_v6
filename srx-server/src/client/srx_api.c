@@ -354,7 +354,7 @@ void deleteUpdate(SRxProxy* proxy, uint16_t keep_window, SRxUpdateID updateID)
 #ifdef USE_GRPC
   GoSlice verify_pdu = {(void*)hdr, (GoInt)length, (GoInt)length};
   printf("---------- PDU (from Delete Update Request) --------: \n");
-  printHex(length, hdr);
+  printHex(length, (unsigned char*)hdr);
   int32_t result = ImpleProxyDeleteUpdate(verify_pdu, connHandler->grpcClientID);
   LOG(LEVEL_INFO, HDR "[deleteUpdate] Result: %02x\n", result);
 #endif
@@ -527,7 +527,8 @@ bool disconnectFromSRx(SRxProxy* proxy, uint16_t keepWindow)
   if (isConnected(proxy))
   {
 #ifdef USE_GRPC
-      if(proxy->grpcClientEnable && connHandler->grpcClientID)
+    extern bool sendGoodbye_grpc(ClientConnectionHandler* self, uint16_t keepWindow);
+    if(proxy->grpcClientEnable && connHandler->grpcClientID)
       {
         LOG(LEVEL_INFO, "### [%s] ###  Reset process ... ", __FUNCTION__);
         sendGoodbye_grpc(connHandler, keepWindow);

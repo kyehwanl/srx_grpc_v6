@@ -1027,11 +1027,8 @@ static void* handleCommands(void* arg)
               LOG(LEVEL_DEBUG, HDR "GoodBye!", pthread_self());
               break;
             case PDU_SRXPROXY_DELTE_UPDATE:
-#ifdef USE_GRPC
-              _processDeleteUpdate_grpc(cmdHandler, item);
-#else
+              //_processDeleteUpdate_grpc(cmdHandler, item);
               _processDeleteUpdate(cmdHandler, item);
-#endif
               break;
             case PDU_SRXPROXY_PEER_CHANGE:
               _processPeerChange(cmdHandler, item);

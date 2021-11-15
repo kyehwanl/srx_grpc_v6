@@ -11,6 +11,8 @@ static bool processValidationRequest_grpc(unsigned char *data, RET_DATA *rt, uns
 static bool processHandshake_grpc(unsigned char *data, RET_DATA *rt);
 static bool sendSynchRequest_grpc();
 
+extern bool sendError(uint16_t errorCode, ServerSocket* srvSoc, ServerClient* client, bool useQueue);
+extern uint32_t generateIdentifier(uint32_t originAS, IPPrefix* prefix, BGPSecData* data);
 
 __attribute__((always_inline)) inline void printHex(int len, unsigned char* buff) 
 {                                                                                 
@@ -526,7 +528,8 @@ void RunQueueCommand(int size, unsigned char *data, RET_DATA *rt, unsigned int g
   LOG(LEVEL_INFO, HDR "[%s] updateID: %08x hdr length: %d\n", __FUNCTION__, updateID, ntohl(hdr->length));
 
 
-  // create the validation command!
+  // create the validation command! 
+  // here, do not need server sock and client thread (3rd, 4th parameter below)
   if (!queueCommand(grpcServiceHandler.cmdQueue, COMMAND_TYPE_SRX_PROXY, NULL, NULL,
         updateID, ntohl(hdr->length), (uint8_t*)hdr))
   {
@@ -537,7 +540,6 @@ void RunQueueCommand(int size, unsigned char *data, RET_DATA *rt, unsigned int g
 
 void RunQueueCommand_uid(int size, unsigned char *data, uint32_t updateId, unsigned int grpcClientID)
 {
-
   LOG(LEVEL_INFO, HDR "[%s] for General purpose Queueing Command", __FUNCTION__);
   printHex(size, data);
 
@@ -563,12 +565,25 @@ void RunQueueCommand_uid(int size, unsigned char *data, uint32_t updateId, unsig
 
   uint8_t  clientID    = 0;
   clientID = findClientID(grpcServiceHandler.svrConnHandler, grpcClientID);
+
+  // find cthread from client ID 
+  ClientThread* cthread = NULL;
+  SListNode* node =  getRootNodeOfSList(&grpcServiceHandler.svrConnHandler->svrSock.cthreads);
+    
+  while (!(node == NULL))
+  {
+      cthread = (ClientThread*)node->data;
+      if (cthread && cthread->proxyID == grpcClientID)
+        break;
+      node = node->next;
+  }
+
+
   LOG(LEVEL_INFO, HDR "[%s] updateID: %08x duHdr length: %d clientID: %d\n",
       __FUNCTION__, updateID, ntohl(duHdr->length), clientID);
 
-  // create the validation command!
-  // TODO: put the client thread as 4th parameter, otherwise segmentation fault at _processDeleteUpdate
-  if (!queueCommand(grpcServiceHandler.cmdQueue, COMMAND_TYPE_SRX_PROXY, NULL, NULL,
+  if (!queueCommand(grpcServiceHandler.cmdQueue, COMMAND_TYPE_SRX_PROXY, 
+        &grpcServiceHandler.svrConnHandler->svrSock, cthread,
         updateID, ntohl(duHdr->length), (uint8_t*)duHdr))
   {
     RAISE_ERROR("Could not add validation request to command queue!");

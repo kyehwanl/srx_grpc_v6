@@ -689,9 +689,9 @@ bool processValidationRequest(ServerConnectionHandler* self,
     case AS_REL_PROVIDER:
       asRelDir = ASPA_DOWNSTREAM; break;
     case AS_REL_SIBLING:
-      asRelDir = ASPA_UPSTREAM; break;
-    case AS_REL_LATERAL:
       asRelDir = ASPA_DOWNSTREAM; break;
+    case AS_REL_LATERAL:
+      asRelDir = ASPA_UPSTREAM; break;
     default:
       asRelDir = ASPA_UNKNOWNSTREAM;     
   }

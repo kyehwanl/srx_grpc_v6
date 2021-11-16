@@ -165,7 +165,7 @@ libgrpc_client_service_la_LIBADD =
 am__libgrpc_client_service_la_SOURCES_DIST =  \
 	$(CLIENT_DIR)/grpc_client_service.c
 am_libgrpc_client_service_la_OBJECTS =  \
-	grpc_client_service.lo
+	grpc_client_service.lo log.lo
 libgrpc_client_service_la_OBJECTS =  \
 	$(am_libgrpc_client_service_la_OBJECTS)
 am_libgrpc_client_service_la_rpath = -rpath \

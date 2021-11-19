@@ -2137,7 +2137,7 @@ rpms: develrpm proxyrpm rpmcheck $(rpm_spec)
 
 service:
 	/usr/bin/libtool --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H  -c -o grpc_service.lo server/grpc_service.c \
-        -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src \
+		-I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src \
         -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/../extras/local/include \
         -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/../_inst/include
 	/usr/bin/libtool --tag=CC   --mode=link   gcc -DHAVE_CONFIG_H  -o libgrpc_service.la grpc_service.lo -rpath `pwd`/.libs \

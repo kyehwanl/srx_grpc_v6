@@ -1492,7 +1492,9 @@ bool addMapping(ServerConnectionHandler* self, uint32_t proxyID,
   if (ok)
   {
   
+#ifdef USE_GRPC
     ClientThread* cthread = (ClientThread*)cSocket;
+#endif // USE_GRPC
     LOG(LEVEL_INFO,"Register proxyID[0x%08X] as clientID[0x%08X]",
         proxyID, clientID);
     if (self->proxyMap[clientID].proxyID == 0)
@@ -1614,7 +1616,6 @@ void deactivateConnectionMapping(ServerConnectionHandler* self,
                                  uint8_t clientID, bool crashed,
                                  uint16_t keepWindow)
 {
-  LOG(LEVEL_INFO,"############# [%s] ##########", __FUNCTION__);
   struct timespec time;
   clock_gettime(CLOCK_REALTIME, &time);
   if (keepWindow < (uint16_t)self->sysConfig->defaultKeepWindow)

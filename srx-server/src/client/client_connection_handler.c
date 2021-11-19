@@ -572,13 +572,10 @@ bool sendGoodbye(ClientConnectionHandler* self, uint16_t keepWindow)
   hdr->keepWindow = htons(keepWindow);
   hdr->length     = htonl(length);
 
-  printf("+ [%s] line:%d \n", __FUNCTION__, __LINE__);
   if (isConnectedToServer(&self->clSock))
   {
-      printf("+ [%s] line:%d \n", __FUNCTION__, __LINE__);
     if (sendData(&self->clSock, &pdu, length))
     {
-      printf("+ [%s] line:%d \n", __FUNCTION__, __LINE__);
       self->established = false;
       return true;
     }
@@ -733,7 +730,7 @@ void ImpleGoStreamThread (SRxProxy* proxy, uint32_t proxyID)
 }
 
 
-#endif
+#endif // USE_GRPC
 ////////////////////////////////////////////////////////////////////////////////
 // Local helper functions
 ////////////////////////////////////////////////////////////////////////////////

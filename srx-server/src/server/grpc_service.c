@@ -187,7 +187,7 @@ static bool processValidationRequest_grpc(unsigned char *data, RET_DATA *rt, uns
   bool doStoreUpdate = false;
   IPPrefix* prefix = NULL;
   // Specify the client id as a receiver only when validation is requested.
-  uint8_t clientID = (uint8_t)grpcClientID; //(doOriginVal || doPathVal) ? client->routerID : 0;
+  uint8_t clientID = findClientID(grpcServiceHandler.svrConnHandler, grpcClientID);
 
   // 1. Prepare for and generate the ID of the update
   prefix = malloc(sizeof(IPPrefix));

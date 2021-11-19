@@ -365,7 +365,7 @@ void syntax(const char* prgName)
     printf ("    The order in which the data is printed is ASN, Prefix, Maxlen");
     printf ("\n    This means the formating string must contain the order");
     printf ("\n    integer - string - integer");
-    printf ("\n\n 2010-%s ANTD NIST - Version %s\n", SRX_DEV_TOYEAR, SRX_TOOLS_VERSION);
+    printf ("\n\n 2010-%s NIST - Version %s\n", SRX_DEV_TOYEAR, SRX_TOOLS_VERSION);
 }
 
 /**

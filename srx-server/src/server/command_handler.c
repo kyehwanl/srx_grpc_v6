@@ -1033,10 +1033,13 @@ static void* handleCommands(void* arg)
             case PDU_SRXPROXY_PEER_CHANGE:
               _processPeerChange(cmdHandler, item);
               break;
+#ifdef USE_GRPC
             case PDU_SRXPROXY_SYNC_REQUEST:
-              LOG(LEVEL_INFO, HDR "[SRx server][handle_commands](Hello Resonse) calling cb_proxyStream in CommandHandler", pthread_self());
+              LOG(LEVEL_INFO, HDR "[SRx server][handle_commands](Hello Resonse) "
+                  "calling cb_proxyStream in CommandHandler", pthread_self());
               cb_proxyStream(item->dataLength, bhdr);
               break;
+#endif // USE_GRPC
             default:
               RAISE_ERROR("Unknown/unsupported pdu type: %d",
                           item->dataID);

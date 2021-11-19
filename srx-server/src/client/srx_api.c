@@ -200,9 +200,11 @@ SRxProxy* createSRxProxy(ValidationReady   validationReadyCallback,
   // initialize the connection handler
   proxy->connHandler = createClientConnectionHandler(proxy);
 
+#ifdef USE_GRPC
   // grpc connections
   proxy->grpcClientEnable = false;
   proxy->grpcConnectionInit = false;
+#endif // USE_GRPC
 
   return proxy;
 }
@@ -216,7 +218,7 @@ void releaseSRxProxy(SRxProxy* proxy)
 {
   if (proxy != NULL)
   {
-    LOG(LEVEL_INFO, "### [%s] ###  Reset process ... ", __FUNCTION__);
+    LOG(LEVEL_DEBUG, "### [%s] ###  Reset process ... ", __FUNCTION__);
     disconnectFromSRx(proxy, SRX_DEFAULT_KEEP_WINDOW);
     releaseSList(&proxy->peerAS);
     free(proxy->connHandler);
@@ -598,11 +600,11 @@ bool reconnectWithSRx(SRxProxy* proxy)
 
   if(reConnected)
   {
-    LOG(LEVEL_INFO, HDR " %s: success", __FUNCTION__);
+    LOG(LEVEL_DEBUG, HDR " %s: success", __FUNCTION__);
   }
   else
   {
-    LOG(LEVEL_INFO, HDR " %s: failure", __FUNCTION__);
+    LOG(LEVEL_DEBUG, HDR " %s: failure", __FUNCTION__);
   }
 
   return reConnected;
@@ -1120,7 +1122,8 @@ void processVerifyNotify(SRXPROXY_VERIFY_NOTIFICATION* hdr, SRxProxy* proxy)
 
 #ifdef BZ263
     ct++;
-    //LOG(LEVEL_DEBUG, HDR "#%u - uid:0x%08x lid:0x%08X (%u)\n", ct, updateID, localID, localID);
+    //LOG(LEVEL_DEBUG, HDR "#%u - uid:0x%08x lid:0x%08X (%u)\n", 
+    //ct, updateID, localID, localID);
 #endif
 
     if (localID > 0 && !hasReceipt)

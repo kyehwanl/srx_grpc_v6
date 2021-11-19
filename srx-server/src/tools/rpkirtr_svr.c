@@ -185,7 +185,7 @@
 #include "util/prefix.h"
 
 // Max characters per line
-#define LINE_BUF_SIZE 255
+#define LINE_BUF_SIZE 4096
 
 /** This structure specified one cache entry. */
 typedef struct {

@@ -165,7 +165,12 @@ static void clientThreadCleanup(ClientMode mode, ClientThread* ct)
 static bool single_sendResult(ServerClient* client, void* data, size_t size)
 {
   ClientThread* clt = (ClientThread*)client;
+#ifdef USE_GRPC
   bool retVal = false;
+#else
+  bool retVal = true;
+#endif
+
 #ifdef USE_GRPC
   if(!clt->type_grpc_client)
 #endif
@@ -184,31 +189,6 @@ static bool single_sendResult(ServerClient* client, void* data, size_t size)
       retVal = false;
     }
   }
-#ifdef USE_GRPC
-#if 0
-  //
-  // Here, instead of using TCP send, gRPC tranfer will be used
-  //
-  else
-  {
-#include "client/libsrx_grpc_client.h"
-  // This is used for selecting grpc communication instead of TCP send
-  char buff[10];
-  buff[0] = 0xAB;
-  buff[1] = 0xCD;
-  buff[2] = 0xEF;
-  int32_t result;
-
-  char buf_data[size];
-  memcpy(buf_data, data, 10);
-
-  GoSlice pdu = {(void*)buf_data, (GoInt)size, (GoInt)size};
-  //GoSlice pdu = {(void*)buff, (GoInt)3, (GoInt)10};
-  //result = Run(pdu);
-  }
-#endif
-#endif
- 
   return retVal;
 }
 
@@ -906,7 +886,6 @@ bool sendPacketToClient(ServerSocket* self, ServerClient* client,
  */
 int closeClientConnection(ServerSocket* self, ServerClient* client)
 {
-  LOG(LEVEL_INFO,"############# [%s] ##########", __FUNCTION__);
   ClientThread* clientThread = (ClientThread*)client;
 
   LOG(LEVEL_DEBUG, HDR "Close and remove client: Thread [0x%08X]; [ID :%u]; "

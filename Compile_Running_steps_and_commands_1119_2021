@@ -17,6 +17,14 @@ Compilation Orders for grpc enabled srx development
       cp protoc /usr/bin/
       cp -rf include/* /usr/include/
 
+
+      in srx_grpc.proto, added following line, (old protoc version doesn't need)
+
+        option go_package = "./";
+
+      Then, srx_grpc.pb.go file will be generated the current("./") directory
+      
+
   (4) set for GOPATH environment variable and put it in .bash_profile
       export GOPATH=/root/go
       PATH=$PATH:$GOPATH/bin
@@ -186,6 +194,41 @@ Compilation Orders for grpc enabled srx development
 
 
 
+    (4) build error troubleshoot
+
+      [root@29b32c75f5a0 client]# go build -gcflags '-N -l' srx_grpc_client.go
+      go: finding module for package google.golang.org/grpc
+      go: finding module for package golang.org/x/net/context
+      go: downloading golang.org/x/net v0.0.0-20211118161319-6a13c67c3ce4
+      go: downloading google.golang.org/grpc v1.42.0
+      go: found golang.org/x/net/context in golang.org/x/net v0.0.0-20211118161319-6a13c67c3ce4
+      go: found google.golang.org/grpc in google.golang.org/grpc v1.42.0 
+      go: google.golang.org/grpc@v1.42.0 requires
+              google.golang.org/genproto@v0.0.0-20200526211855-cb27e3aa2013 requires
+              google.golang.org/protobuf@v1.23.1-0.20200526195155-81db48ad09cc: invalid version: git fetch --unshallow -f origin in /root/go/pkg/mod/cache/vcs/a6c5d6b8734f41936247415390043c979295646fadef73c39eedc1735cd0fef4: exit status 128:
+              fatal: git fetch-pack: expected shallow list
+
+
+    (reason)
+    --> This error related to the old version of git, which is being used v1.8, mismatched with grpc v.1.42
+
+        [root@29b32c75f5a0 client]# go version
+        go version go1.15.14 linux/amd64
+        [root@29b32c75f5a0 client]# git version
+        git version 1.8.3.1
+ 
+    (solution)
+        (https://github.com/golang/go/issues/38373)
+        yum -y erase github
+        yum -y install https://repo.ius.io/ius-release-el7.rpm
+        yum -y install git222
+
+    (Cautioin)
+        golang and golang-bin will be removed when erased the original git v1.8, 
+        so, need to reinstall golang 
+
+
+
 
 7. compile for srx server and QuaggaSrx
 
@@ -291,13 +334,169 @@ Compilation Orders for grpc enabled srx development
 
 
 
+9. docker containerizing command history
+
+    (1) yum install
+    yum install -y git automake
+    git clone --depth=1 https://github.com/kyehwanl/srx_grpc_v6.git
+    
+    (2) srx-crypto-api build and install
+    cd /root/srx-crypto-api/
+    yum -y install epel-release 
+    yum -y install vim git gcc automake autoconf libtool vifm psmisc readline-devel patch
+    yum -y install wget libconfig libconfig-devel openssl openssl-devel libcrypto.so.* less gcc uthash-devel
+
+    autoreconf -i
+    ./configure --prefix=/ CFLAGS="-g -O0"
+    make all install
+
+
+    (3) pre-requisites for go-build client and server
+    
+        A. libpatricia generation, need: libpatritia.so
+
+            cd srx-server/extras/
+            in make-lp.sh, replace '../../../../libtool' with libtool
+                #LIBTOOL="../../../../libtool --tag=CC"
+                LIBTOOL="libtool --tag=CC"
+
+            ./make-lp.sh
+
+        B.  in srx-server - need: configh, srx_api.h, srxcryptoapi.h (might be obtained when installing srx-crypto-api)
+            -- config.h
+            mkdir -p srx-server/src/.libs
+            autoreconf -i
+            ./configure --disable-option-checking --prefix=/ sca_dir=/ --cache-file=/dev/null \
+                --srcdir=. --enable-grpc grpc_dir=$PWD/../
+
+            -- srx_api.h
+            cd srx-server/src/client/
+            cp srx_api.h /include/srx
+
+    
+        C.  libgrpc_service library at srx-server/src/server
+
+            /usr/bin/libtool --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H  -c -o grpc_service.lo server/grpc_service.c \
+                -I/root/srx_grpc_v6/srx-server/src  -I/root/srx_grpc_v6/srx-server/src/../extras/local/include -I/include
+            /usr/bin/libtool --tag=CC   --mode=link   gcc -DHAVE_CONFIG_H  -o libgrpc_service.la grpc_service.lo 
+                -rpath `pwd`/.libs         -L/root/srx_grpc_v6/srx-server/src/.libs/
+            /usr/bin/libtool --tag=CC   --mode=install cp libgrpc_service.la /lib64
+            libtool --finish /root/srx_grpc_v6/srx-server/src/.libs
+
+
+        D. libgrpc_client_service library at srx-server/src/client
+
+            /usr/bin/libtool --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H  -c -o grpc_client_service.lo client/grpc_client_service.c \
+                -I/root/srx_grpc_v6/srx-server/src  -I/root/srx_grpc_v6/srx-server/src/../extras/local/include -I/include
+            /usr/bin/libtool --tag=CC   --mode=link   gcc -DHAVE_CONFIG_H  -o libgrpc_client_service.la grpc_client_service.lo \
+                -rpath `pwd`/.libs
+            /usr/bin/libtool --tag=CC   --mode=install cp libgrpc_client_service.la /lib64
+            libtool --finish /root/srx_grpc_v6/srx-server/src/.libs
+
+
+
+
+        E. go language, grpc plugins, protocol buffer
+
+            -- go language and grpc plugins
+            yum install -y golang
+            go get -u github.com/golang/protobuf/protoc-gen-go
+            go get -u google.golang.org/grpc
+
+            -- protocol buffer 
+            mkdir temp
+            cd temp
+            wget https://github.com/protocolbuffers/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip
+            yum install -y unzip
+            unzip protoc-3.6.1-linux-x86_64.zip
+            cp bin/protoc /bin/
+            cp -rf include/*  /usr/include/
+
+            -- bashrc, add env variables
+            export GOPATH=/root/go
+            PATH=$PATH:$GOPATH/bin
+            export PATH
+
+        F. replace cgo variable with the proper pathes at srx_grpc_client.go 
+
+                #cgo CFLAGS: -g -Wall -I/include/ -I/root/srx_grpc_v6/srx-server/src/ -I/root/srx_grpc_v6/srx-server/src/../extras/local/include
+                #cgo LDFLAGS: -L/root/srx_grpc_v6/srx-server/src/.libs -lgrpc_client_service -Wl,-rpath -Wl,/root/srx_grpc_v6/srx-server/src//.libs -Wl,--unresolved-symbols=ignore-all
+
+        G. replace cgo variable with the proper pathes at srx_grpc_server.go 
+
+                #cgo CFLAGS: -DUSE_GRPC -g -Wall -I/include/ -I/root/srx_grpc_v6/srx-server/src -I/root/srx_grpc_v6/srx-server/src/client       -I/root/srx_grpc_v6/srx-server/src/../extras/local/include
+                #cgo LDFLAGS: -L/root/srx_grpc_v6/srx-server/src/.libs -lgrpc_service -Wl,-rpath -Wl,/root/srx_grpc_v6/srx-server/src//.libs -Wl,--unresolved-symbols=ignore-all
+
+
+
+    (4) clietn go build
+    go mod init srx_grpc
+    go build -gcflags '-N -l' srx_grpc_client.go
+
+        *** Error ***
+        google.golang.org/protobuf@v1.23.1-0.20200526195155-81db48ad09cc: invalid version: 
+        git fetch --unshallow -f origin in /root/go/pkg/mod/cache/vcs/a6c5d6b8734f41936247415390043c979295646fadef73c39eedc1735cd0fef4: 
+        exit status 128:
+            fatal: git fetch-pack: expected shallow list
+
+
+        (Solution) refer to 6-(4)
+
+    yum -y erase git
+    yum -y install https://repo.ius.io/ius-release-el7.rpm
+    yum -y install git222
+
+    yum install -y golang
+    go get -u github.com/golang/protobuf/protoc-gen-go
+    go get -u google.golang.org/grpc
+
+    go mod init srx_grpc_v6
+    go build -gcflags '-N -l' srx_grpc_client.go
+    go build -gcflags '-N -l' -buildmode=c-shared -o libsrx_grpc_client.so  srx_grpc_client.go
+
+
+
+    (5) server go build
+    go build -gcflags '-N -l' srx_grpc_server.go
+    go build -gcflags '-N -l' -buildmode=c-shared -o libsrx_grpc_server.so  srx_grpc_server.go
+
+
+
+    (6) srx-server build
+    cd ../srx-server/
+    make all install
+
+
+    (7) quagga-srx build
+      
+    autoreconf -i
+    ./configure --prefix=/ --disable-snmp --disable-ospfapi --disable-ospfd --disable-ospf6d \
+                --disable-babeld --disable-doc --disable-tests --enable-user=root --enable-group=root \
+                --enable-configfile-mask=0644 --enable-logfile-mask=0644 \
+                --enable-srxcryptoapi srx_dir=/  sca_dir=/ --enable-grpc grpc_dir=$PWD/../
+
+    make all install
+
+
+
+
+
+    (8) test
+        -- srx_server
+        ./srx_server
+
+        -- client
+        LD_PRELOAD=/root/srx_grpc_v6/srx-server/src/.libs/libSRxProxy.so ./srx_grpc_client
 
 
 
 
 
 
-9. Running logs
+
+
+
+10. Running logs
 
   (1) client - srxsvr_client
 

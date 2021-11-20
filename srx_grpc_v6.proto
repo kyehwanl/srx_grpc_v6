@@ -5,6 +5,8 @@ syntax = "proto3";
 
 package srx_grpc_v6;
 
+//option go_package = "./";   // commented out for old versoin of protoc 
+
 
 // Interface exported by the server.
 service SRxApi {

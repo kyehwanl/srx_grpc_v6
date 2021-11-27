@@ -492,21 +492,6 @@ Compilation Orders for grpc enabled srx development
 
 
 10. TODO
-    (1) git add submodule
-        git s^Cmodule add https://github.com/usnistgov/NIST-BGP-SRx.git
-
-    (2) clone and download recursively
-        git submodule update --init --recursive
-
-
-    (3) build NIST-BGP-SRx with srxcryptoapi and srx-server in prefix (-P) and first compile only (-C)
-        ./buildBGP-SRx.sh -A -T SCA SRxSnP -P $PWD/_inst or /usr/ -C   
-
-    (4) patch for grpc codes
-    (5) compile
-        ./buildBGP-SRx.sh -A -T SCA SRxSnP -P $PWD/_inst or /usr/ 
-
-        --<caution> need switch for grpc:  --enable-grpc grpc_dir=
 
 
 

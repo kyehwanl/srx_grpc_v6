@@ -11,7 +11,7 @@
 test_install/
 *.o
 .libs/
-*.patch
+#*.patch
 !**/extras/**/*.patch
 cscope.files
 cscope.out
@@ -51,7 +51,7 @@ SourceTempTest/
 garbage_cleaner*
 duplicate_prefix
 quagga-original/
-diff_*
+#diff_*
 *.tmp
 git.svn/
 #Makefile

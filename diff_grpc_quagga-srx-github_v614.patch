@@ -1,0 +1,447 @@
+--- ./bgpd/Makefile.am	2021-11-23 14:56:24.614374172 -0500
++++ ./bgpd/Makefile.am	2021-11-24 20:34:33.591973602 -0500
+@@ -4,6 +4,28 @@ INCLUDES = @INCLUDES@ -I.. -I$(top_srcdi
+ DEFS = @DEFS@ -DSYSCONFDIR=\"$(sysconfdir)/\"
+ INSTALL_SDATA=@INSTALL@ -m 600
+ 
++
++if ENABLE_GRPC_COND
++GRPC_SERVER_LIBS = -lsrx_grpc_server
++GRPC_CLIENT_LIBS = -lsrx_grpc_client
++GRPC_LIBS = $(GRPC_SERVER_LIBS) $(GRPC_CLIENT_LIBS)
++
++#GRPC_DIR = /opt/project/gobgp_test/gowork/src/srx_grpc
++GRPC_DIR = $(grpc_dir)
++GRPC_SERVER_PATH = $(GRPC_DIR)/server
++GRPC_CLIENT_PATH = $(GRPC_DIR)/client
++
++GRPC_SERVER_LDFLAG = -L$(GRPC_SERVER_PATH) #-rpath '$(GRPC_SERVER_PATH)'
++GRPC_CLIENT_LDFLAG = -L$(GRPC_CLIENT_PATH) #-rpath '$(GRPC_CLIENT_PATH)'
++
++GRPC_SERVER_RPATH = -rpath '$(GRPC_SERVER_PATH)'
++GRPC_CLIENT_RPATH = -Wl,-rpath -Wl,$(GRPC_CLIENT_PATH)
++#GRPC_CLIENT_RPATH = -rpath '$(GRPC_CLIENT_PATH)'
++GRPC_CFLAGS = -I$(GRPC_DIR)
++endif
++
++
++
+ AM_CFLAGS = $(PICFLAGS)
+ AM_LDFLAGS = $(PILDFLAGS) -ldl
+ 
+@@ -28,7 +50,12 @@ noinst_HEADERS = \
+ 
+ bgpd_SOURCES = bgp_main.c
+ 
++if ENABLE_GRPC_COND
++bgpd_LDADD = libbgp.a ../lib/libzebra.la $(GRPC_CLIENT_LIBS) @LIBCAP@ @LIBM@
++bgpd_LDFLAGS = $(GRPC_CLIENT_LDFLAG) $(GRPC_CLIENT_RPATH)
++else
+ bgpd_LDADD = libbgp.a ../lib/libzebra.la @LIBCAP@ @LIBM@
++endif
+ 
+ examplesdir = $(exampledir)
+ dist_examples_DATA = bgpd.conf.sample bgpd.conf.sample2 bgpd.conf.sampleSRx
+--- ./bgpd/bgp_info_hash.c	2021-11-23 14:56:24.617374189 -0500
++++ ./bgpd/bgp_info_hash.c	2021-11-23 21:19:07.136058519 -0500
+@@ -294,15 +294,8 @@ struct bgp_info* bgp_info_fetch (struct
+ 
+   if(entry) 
+   {
+-    for( entry= hash->table; entry!=NULL; 
+-         entry=(struct bgp_info_hash_item*)(entry->hh.next))
+-    {
+-      if (entry->identifier == identifier)
+-      {
+         return entry->info;
+       }
+-    }
+-  }
+   return NULL;
+ }
+ 
+--- ./bgpd/bgp_main.c	2021-11-23 14:56:24.618374195 -0500
++++ ./bgpd/bgp_main.c	2021-11-23 21:19:07.136058519 -0500
+@@ -202,6 +202,7 @@ sigint (void)
+     bgp_terminate ();
+ 
+   zprivs_terminate (&bgpd_privs);
++  zlog_notice (" bgp exit calling");
+   bgp_exit (0);
+ }
+ 
+--- ./bgpd/bgp_route.c	2021-11-23 14:56:24.622374218 -0500
++++ ./bgpd/bgp_route.c	2021-11-24 20:41:42.800439930 -0500
+@@ -56,7 +56,6 @@ Software Foundation, Inc., 59 Temple Pla
+ #include "bgpd/bgp_vty.h"
+ #include "bgpd/bgp_mpath.h"
+ 
+-
+ #ifdef USE_SRX
+ #include <sys/un.h>
+ #include "srx/srx_defs.h"
+@@ -78,6 +77,9 @@ extern void handleSRxSignatures(SRxUpdat
+                                 void* bgpRouter);
+ extern void handleSRxSynchRequest(void* bgpRouter);
+ int respawnReceivePacket(struct thread *t);
++#ifdef USE_GRPC
++int respawn_grpc_init(struct thread *t);
++#endif
+ struct thread *g_current_read_thread;
+ 
+ struct SRxThread* srx_thread_arg_new(void)
+@@ -247,6 +249,93 @@ int respawnReceivePacket(struct thread *
+     return 0;
+ }
+ 
++#ifdef USE_GRPC
++int respawn_grpc_init(struct thread *t)
++{
++  //zlog_debug("respawn_grpc_init called");
++
++  struct SRxThread *rq;
++  struct thread *thr=NULL;
++  rq = (struct SRxThread *)THREAD_ARG(t);
++  rq->t_read = NULL;
++  SRxProxy* srxProxy = rq->proxy;
++
++  bool bRetVal = true;
++  struct bgp* bgp = bgp_get_default();
++  bool connected = false;
++
++  static int siMaxReconnect = 0;
++
++
++  if (!srxProxy->grpcConnectionInit)
++  {
++    // TODO: max number attempt variables are needed here
++    bRetVal = grpc_init(srxProxy, ((SRxProxy*)(rq->proxy))->proxyID);
++    if (bRetVal)
++    {
++      if (srxProxy->grpcConnectionInit && !srxProxy->grpcClientEnable)
++      {
++        connected = connectToSRx_grpc(srxProxy, bgp->srx_host, bgp->srx_port,
++            bgp->srx_handshakeTimeout, false);  
++
++        if (connected)
++        {
++          if ( CHECK_FLAG(bgp->srx_config, SRX_CONFIG_EVAL_PATH_DISTR))
++            zlog_info ("\033[92m""Enabled Distributed Evaluation on SRx server <GRPC>""\033[0m" );
++        }
++      } // end of if 'connected'
++    } 
++    else
++    {
++      if(siMaxReconnect >= NUM_MAX_RECONNECT )
++      {
++        if (bgp == NULL)
++        {
++          return 0;
++        }
++
++        zlog_debug (" srx unset() bgp info hash finish() and releaseSRxProxy()");
++        bgp_srx_unset(bgp);
++        siMaxReconnect =0;
++        //bgp_info_hash_finish (&bgp->info_hash);
++        if (bgp->srxProxy)
++        {
++          releaseSRxProxy (bgp->srxProxy);
++        }
++        if(thr)
++        {
++          thread_cancel(thr);
++        }
++
++        zlog_debug (" srx set default again");
++        srx_set_default(bgp);
++      }
++      siMaxReconnect++;
++    } // end of if (bRet Val)
++  } // end grpc_ConnectionInit
++
++  rq->t_read = thr =  thread_add_timer (bm->master, respawn_grpc_init, rq,
++      RETRY_TIMER_SEC/2); // every 10 sec, try again
++
++  return 0;
++}
++
++int checkClientConnection_grpc(struct thread *t)
++{
++    zlog_debug (" %s called", __FUNCTION__);
++    struct thread *thr=NULL;
++    struct SRxThread *rq;
++    
++    rq = (struct SRxThread *)THREAD_ARG(t);
++    rq->t_read = NULL;
++
++    struct bgp* bgp = bgp_get_default();
++
++
++    return 0;
++}
++#endif
++
+ int initUnSocket(struct thread *t)
+ {
+     struct sockaddr_un saddru_rv, saddru_rv_recv;
+@@ -3443,7 +3532,8 @@ void verify_update (struct bgp *bgp, str
+         asPathList.segments = (ASSEGMENT*)calloc(asPathList.length, sizeof(ASSEGMENT));
+             
+         zlog_debug ("[ ASPA ] AS PathList Info - AS Length: %d  Type: %s  AS relationship: %s", 
+-                asPathList.length, asPathList.asType==2 ? "AS_SEQUENCE": (asPathList.asType==1 ? "AS_SET": "ETC"), 
++                asPathList.length, 
++                asPathList.asType==2 ? "AS_SEQUENCE": (asPathList.asType==1 ? "AS_SET": "ETC"), 
+                 asPathList.asRelationship == 2 ? "provider" : (asPathList.asRelationship == 1 ? "customer": \
+                 (asPathList.asRelationship == 3 ? "sibling": (asPathList.asRelationship == 4 ? "lateral" : "unknown"))));
+ 
+@@ -3485,8 +3575,15 @@ void verify_update (struct bgp *bgp, str
+         useAspaVal = true;
+       }
+ 
++#ifdef USE_GRPC
++      //printf("prefix: %s \/%d \n", inet_ntoa(prefix->ip.addr.v4.in_addr), prefix->length);
++      verifyUpdate_grpc(bgp->srxProxy, info->localID, useOriginVal, usePathVal,
++                    useAspaVal, defResult, prefix, oas, bgpsec, asPathList);
++#else   /* USE_GRPC */
+       verifyUpdate(bgp->srxProxy, info->localID, useOriginVal, usePathVal, 
+                    useAspaVal, defResult, prefix, oas, bgpsec, asPathList);
++#endif  /* USE_GRPC */
++
+ 
+       if(asPathList.segments)
+       {
+--- ./bgpd/bgp_route.h	2021-11-23 14:56:24.622374218 -0500
++++ ./bgpd/bgp_route.h	2021-11-23 21:19:07.140058542 -0500
+@@ -254,6 +254,9 @@ extern void verify_update (struct bgp *b
+ extern int  srx_calc_validation_state(struct bgp *, struct bgp_info *);
+ struct SRxThread* srx_thread_arg_new(void);
+ int checkClientConnection(struct thread *t);
++#ifdef USE_GRPC
++int checkClientConnection_grpc(struct thread *t);
++#endif /* USE_GRPC */
+ int initUnSocket(struct thread *t);
+ int checkSendQueue(struct thread *t);
+ void threadControlCall(int type);
+--- ./bgpd/bgpd.c	2021-11-23 14:56:24.627374246 -0500
++++ ./bgpd/bgpd.c	2021-11-24 20:50:34.527495640 -0500
+@@ -66,7 +66,6 @@ Software Foundation, Inc., 59 Temple Pla
+ #include "bgpd/bgp_info_hash.h"
+ #include "bgpd/bgp_validate.h"
+ 
+-
+ // Forward Declaration
+ bool handleSRxValidationResult (SRxUpdateID updateID, uint32_t localID,
+                                 ValidationResultType valType,
+@@ -78,6 +77,10 @@ void handleSRxSynchRequest(void* bgpRout
+ void handleSRxMessages(SRxProxyCommCode mainCode, int subCode, void* userPtr);
+ void srx_set_default(struct bgp *bgp);
+ int respawnReceivePacket(struct thread *t);
++#ifdef USE_GRPC
++int respawn_grpc_init(struct thread *t);
++bool grpc_init (SRxProxy* proxy, uint32_t proxyID);
++#endif
+ #endif /* USE_SRX */
+ 
+ /* BGP process wide configuration.  */
+@@ -623,6 +626,41 @@ int srx_connect_proxy(struct bgp *bgp)
+   // configuration, set a flag to connect once g_rq is established.
+   if (g_rq != NULL)
+   {
++#ifdef USE_GRPC
++    g_rq->proxy = bgp->srxProxy;
++    if (bgp->srxProxy->grpcConnectionInit)
++    {
++      connected = connectToSRx_grpc(bgp->srxProxy, bgp->srx_host, bgp->srx_port,
++          bgp->srx_handshakeTimeout, false);  
++
++      if (connected)
++      {
++        if ( CHECK_FLAG(bgp->srx_config, SRX_CONFIG_EVAL_PATH_DISTR))
++          zlog_info ("\033[92m""Enabled Distributed Evaluation on SRx server <GRPC>""\033[0m" );
++      }
++    }
++    else
++    {
++      zlog_err ("Could not connect to SRx server at %s:%d, check if server(grpc) is "
++                "running", bgp->srx_host, bgp->srx_port);
++
++      // NOTE: GRPC XXX - consider the way of respawning like the one below using tcp socket
++      //
++      // thread add_read uses a socket file descriptor 
++      // So, need to have another quagga timer such as thread_add_timer
++      //
++      // Necessary functions - 
++      //      1. grpc_init(bgp->srxProxy, bgp->srx_proxyID); - bgpd.c::srx_default_set
++      //          1.1 just dialing with grpc port is ok ??
++      //
++      //      2. checkClientConnection - bgp_route.c ?? --> possibly no
++      //
++
++      // t_read is thread, who has event function and times etc (defined in lib/thread.h)
++    }
++    g_rq->t_read = thread_add_timer(bm->master, respawn_grpc_init, g_rq, 10); // retry timer 10 sec
++
++#else
+     // The last parameter (true) stands for external socket control
+     connected = connectToSRx (bgp->srxProxy, bgp->srx_host, bgp->srx_port,
+                               bgp->srx_handshakeTimeout, true);
+@@ -646,6 +684,7 @@ int srx_connect_proxy(struct bgp *bgp)
+       zlog_err ("Could not connect to SRx server at %s:%d, check if server is "
+                 "running", bgp->srx_host, bgp->srx_port);
+     }
++#endif /* USE_GRPC */
+   }
+ 
+   return connected ? 0 : 1;
+@@ -760,6 +799,7 @@ int bgp_srx_unset (struct bgp *bgp)
+       thread_cancel(g_rq->t_read);
+     }
+ 
++    zlog_info("[%s] bgp exit process", __FUNCTION__);
+     disconnectFromSRx (bgp->srxProxy, bgp->srx_keepWindow);
+   }
+   else
+@@ -2615,7 +2655,6 @@ bool handleSRxValidationResult (SRxUpdat
+     deleteUpdate(bgp->srxProxy, bgp->srx_keepWindow, updateID);
+   }
+ 
+-
+   return retVal;
+ }
+ 
+@@ -2642,6 +2681,7 @@ static void _handleSRxSynchRequest_proce
+ {
+   struct bgp_info *binfo;
+   struct bgp_node *bnode;
++  //zlog_info ("*** SRx Sync Request Process table(%p): bnode(%p) dump ***", table, bgp_table_top(table));
+ 
+   SRxDefaultResult defResult;
+ 
+@@ -2675,7 +2715,7 @@ static void _handleSRxSynchRequest_proce
+  */
+ void handleSRxSynchRequest(void* bgpRouter)
+ {
+-  zlog_info ("*** Received SRx Synchronization Request! ***\n");
++  zlog_info ("*** Received SRx Synchronization Request! ***");
+ 
+   struct bgp* bgp = (struct bgp*)bgpRouter;
+   if (bgp == NULL)
+@@ -2753,6 +2793,10 @@ void srx_set_default(struct bgp *bgp)
+ //  }
+ 
+   memset(bgp->srx_bgpsec_key, 0, sizeof (BGPSecKey));
++
++#ifdef USE_GRPC
++  grpc_init(bgp->srxProxy, bgp->srx_proxyID);
++#endif /* USE_GRPC */
+ }
+ #endif /* USE_SRX */
+ 
+@@ -2950,6 +2994,15 @@ bgp_delete (struct bgp *bgp)
+   if (list_isempty(bm->bgp))
+     bgp_close ();
+ 
++#ifdef USE_SRX
++  if (bgp->srxProxy)
++  {
++    zlog_debug ("[%s] calling release SRx proxy ", __FUNCTION__);
++    releaseSRxProxy (bgp->srxProxy);
++    bgp->srxProxy = NULL;
++  }
++#endif
++
+   bgp_unlock(bgp);  /* initial reference */
+ 
+   return 0;
+@@ -3000,7 +3053,9 @@ bgp_free (struct bgp *bgp)
+   bgp_info_hash_finish (&bgp->info_lid_hash);
+   if (bgp->srxProxy)
+   {
++    zlog_debug ("[%s] calling release SRx proxy ", __FUNCTION__);
+     releaseSRxProxy (bgp->srxProxy);
++    bgp->srxProxy = NULL;
+   }
+   int kIdx = 0;
+   for (; kIdx < SRX_MAX_PRIVKEYS; kIdx++)
+@@ -6655,6 +6710,32 @@ bgp_init (void)
+ #endif /* HAVE_SNMP */
+ }
+ 
++#ifdef USE_GRPC
++extern SRxProxy *g_proxy;
++extern void ImpleGoStreamThread (SRxProxy* proxy, uint32_t proxyID);
++
++bool grpc_init (SRxProxy* proxy, uint32_t proxyID)
++{
++    // calling to initialize GRPC on libSRxProxy
++    bool initResult = callSRxGRPC_Init("localhost:50000"); 
++    zlog_debug ("[grpc_init ] proxy: %p,  proxy ID [defaul]: %08x, grpcEnabled[%d]\n", proxy, proxyID, initResult);
++    //printf     ("[grpc_init ] proxy: %p,  proxy ID [defaul]: %08x, grpcEnabled[%d]\n", proxy, proxyID, initResult);
++
++    if (!initResult)
++    {
++      zlog_debug ("[grpc_init ] grpc call fail\n");
++      return false; 
++    }
++
++    proxy->grpcConnectionInit = true;
++    g_proxy = proxy;
++
++    // NOTE: here some stream server threads
++    ImpleGoStreamThread(proxy, proxyID);
++    return true;
++}
++#endif /* USE_GRPC */
++
+ void
+ bgp_terminate (void)
+ {
+--- ./bgpd/bgpd.h	2021-11-23 14:56:24.628374252 -0500
++++ ./bgpd/bgpd.h	2021-11-23 21:19:07.147058582 -0500
+@@ -950,8 +950,8 @@ struct peer
+ #define PEER_FLAG_BGPSEC_CAPABILITY         (1 << 15)/* bgpsec capability - SEND */
+ #define PEER_FLAG_ASPA_RELATIONSHIP_PROV    (1 << 16)/* ASPA peer relationship provider */
+ #define PEER_FLAG_ASPA_RELATIONSHIP_CUST    (1 << 17)/* ASPA peer relationship customer */
+-#define PEER_FLAG_ASPA_RELATIONSHIP_SIBL    (1 << 18)/* ASPA peer relationship customer */
+-#define PEER_FLAG_ASPA_RELATIONSHIP_LATL    (1 << 19)/* ASPA peer relationship customer */
++#define PEER_FLAG_ASPA_RELATIONSHIP_SIBL    (1 << 18)/* ASPA peer relationship sibling */
++#define PEER_FLAG_ASPA_RELATIONSHIP_LATL    (1 << 19)/* ASPA peer relationship lateral */
+ #endif
+ 
+   /* NSF mode (graceful restart) */
+--- ./configure.ac	2021-11-23 14:56:24.630374263 -0500
++++ ./configure.ac	2021-11-23 21:19:07.148058587 -0500
+@@ -359,6 +359,25 @@ AC_ARG_ENABLE(srx,
+ AC_ARG_ENABLE(srxcryptoapi,
+   AC_HELP_STRING([--disable-srxcryptoapi],[disable srxcryptoapi integration]))
+ 
++
++# check gRPC support variables
++AC_ARG_ENABLE(grpc,
++              [ --enable-grpc       enable grpc features],
++              [enable_grpc="yes"],[])
++
++AM_CONDITIONAL([ENABLE_GRPC_COND], [test x$enable_grpc = xyes])
++
++AC_MSG_CHECKING(checking to see if grpc is enabled)
++if test "x${enable_grpc}" = "xyes"; then
++    AC_MSG_RESULT(yes)
++    AC_DEFINE([USE_GRPC],[], SRX GRPC)
++    AC_ARG_VAR(grpc_dir, provide grpc driver directory in which grpc server and client installed)
++else
++    AC_MSG_RESULT(no)
++fi
++
++
++
+ # Make sure the values are set
+ AC_MSG_CHECKING([SRx additions are enabled])
+ if test x"${enable_srx}" = x ; then
+@@ -1878,6 +1897,7 @@ group for vty sockets  	: ${enable_vty_g
+ config file mask        : ${enable_configfile_mask}
+ log file mask           : ${enable_logfile_mask}
+ enable srx-crypto-api   : ${sca_usage}
++enable gRPC support     : ${enable_grpc}
+ 
+ The above user and group must have read/write access to the state file
+ directory and to the config files in the config file directory."

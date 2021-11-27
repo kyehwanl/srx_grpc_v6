@@ -906,6 +906,7 @@ int closeClientConnection(ServerSocket* self, ServerClient* client)
 
 
 
+#if 0
 #ifdef USE_GRPC
 static void* thread_ClientHandler_gRPC(void* clientThread)
 {
@@ -939,5 +940,6 @@ static void* thread_ClientHandler_gRPC(void* clientThread)
   
   pthread_exit(0);
 }
+#endif
 #endif
 

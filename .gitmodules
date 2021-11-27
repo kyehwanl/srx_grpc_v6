@@ -1,0 +1,3 @@
+[submodule "NIST-BGP-SRx"]
+	path = NIST-BGP-SRx
+	url = https://github.com/usnistgov/NIST-BGP-SRx.git

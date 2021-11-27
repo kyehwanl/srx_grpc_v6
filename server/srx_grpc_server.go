@@ -2,15 +2,9 @@ package main
 
 /*
 
-#cgo CFLAGS: -DUSE_GRPC -g -Wall -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/../_inst/include/ -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/client -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/../extras/local/include
-
-//#cgo LDFLAGS: /opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/.libs/log.o -L/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/.libs -lgrpc_service -Wl,-rpath -Wl,/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server//src//.libs -Wl,--unresolved-symbols=ignore-all
-
-#cgo LDFLAGS: -L/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/.libs -lgrpc_service -Wl,-rpath -Wl,/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server//src//.libs -Wl,--unresolved-symbols=ignore-all
-
 #include <stdio.h>
 #include "shared/srx_defs.h"
-#include "srx/srx_api.h"
+#include "client/srx_api.h"
 #include "server/grpc_service.h"
 
 

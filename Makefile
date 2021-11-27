@@ -1,20 +1,241 @@
-all:
-	go build -gcflags '-N -l' -buildmode=c-shared -o server/libsrx_grpc_server.so  server/srx_grpc_server.go
-	go build -gcflags '-N -l' -buildmode=c-shared -o client/libsrx_grpc_client.so  client/srx_grpc_client.go
+
+###################### 
+# VARIABLES			 # 
+###################### 
+
+ROOT= ${PWD}
+SRX_SERVER = srx-server
+QSRX = quagga-srx
+SRX_EXTRAS = $(SRX_SERVER)/extras
+SHELL = /bin/sh
+LIBTOOL = $(SHELL) libtool
+CC = gcc
+CCLD = $(CC)
+DEFS = -DHAVE_CONFIG_H 
+SRC = src
+CLIENT_DIR = client
+SERVER_DIR = server
+UTIL_DIR = util
+lib_LTLIBRARIES = libgrpc_service.la libgrpc_client_service.la
+SUBMODULE=NIST-BGP-SRx
+
+###################### 
+#  Substitution RULE # 
+###################### 
+
+# These should be inherited from Makefile.in 
+
+#prefix = 
+#includedir = ${prefix}/include
+#exec_prefix = ${prefix}
+#libdir = ${exec_prefix}/lib64
+#SCA_CFLAGS = 
+#grpc_dir = 
+
+prefix = /opt/project/gobgp_test/gowork/src/srx_grpc_v6/test_install
+includedir = ${prefix}/include
+exec_prefix = ${prefix}
+libdir = ${exec_prefix}/lib64
+SCA_CFLAGS = $(prefix)
+grpc_dir = $(ROOT)
+
+
+DEFAULT_INCLUDES = -I.
+INCLUDES = -I$(ROOT)/$(SUBMODULE)/$(SRX_SERVER)/$(SRC) \
+    	-I$(ROOT)/$(SUBMODULE)/$(SRX_EXTRAS)/local/include \
+    	-I$(prefix)/include
+
+GRPC_DIR = $(grpc_dir)
+GRPC_CFLAGS = -I$(GRPC_DIR)
+AM_CFLAGS = $(SCA_CFLAGS) $(GRPC_CFLAGS) -std=gnu99
+
+CFLAGS = -g -O0 -Wall 
+LDFLAGS = 
+LIBS = -lpthread -lreadline -ldl -lconfig 
+
+
+LTCOMPILE = $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) \
+	$(DEFAULT_INCLUDES) $(INCLUDES) $(CFLAGS)
+LINK = $(LIBTOOL) --tag=CC  --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(LDFLAGS) -o $@
+
+
+
+CGO_CFLAGS_SERVER="-DUSE_GRPC -g -Wall -I$(prefix)/include/ -I$(ROOT)/$(SUBMODULE)/$(SRX_SERVER)/$(SRC) -I$(ROOT)/$(SUBMODULE)/$(SRX_SERVER)/$(SRC)/client -I$(ROOT)/$(SUBMODULE)/$(SRX_EXTRAS)/local/include"
+
+CGO_LDFLAGS_SERVER="-L$(ROOT)/.libs -lgrpc_service -Wl,-rpath -Wl,$(ROOT)/.libs -Wl,--unresolved-symbols=ignore-all"
+
+
+CGO_CFLAGS_CLIENT="-g -Wall -I$(prefix)/include/ -I$(ROOT)/$(SUBMODULE)/$(SRX_SERVER)/$(SRC) -I$(ROOT)/$(SUBMODULE)/$(SRX_SERVER)/$(SRC)/client -I$(ROOT)/$(SUBMODULE)/$(SRX_EXTRAS)/local/include"
+
+CGO_LDFLAGS_CLIENT="-L$(ROOT)/.libs -lgrpc_client_service -Wl,-rpath -Wl,$(ROOT)/.libs -Wl,--unresolved-symbols=ignore-all"
+
+
+CONF_CMD = $(shell cd $(ROOT)/$(SUBMODULE)/$(SRX_SERVER) && /bin/sh -c "./configure --prefix=$(prefix) sca_dir=$(prefix) --enable-grpc grpc_dir=$(ROOT)")
+BUILD_CMD = $(shell cd $(ROOT)/$(SUBMODULE) && ./buildBGP-SRx.sh -A -T SCA SRxSnP -P $(prefix))
+BUILD_SRX = $(shell cd $(ROOT)/$(SUBMODULE)/$(SRX_SERVER) && /bin/sh -c "./configure --prefix=$(prefix) sca_dir=$(prefix) --enable-grpc grpc_dir=$(ROOT) && make all install" )
+BUILD_API = $(shell cd $(ROOT)/$(SUBMODULE)/srx-crypto-api && ./configure --prefix=$(prefix) CFLAGS="-O0 -g" && make all install)
+AUTO_CMD = $(shell  cd $(ROOT)/$(SUBMODULE)/$(SRX_SERVER) && autoreconf -i )
+
+PATCH_FILE = diff_grpc_srx-server-src_github_v614.patch 
+PATCH_FILE_QSRX = diff_grpc_quagga-srx-github_v614.patch
+
+
+###################### 
+# SUFFIXES RULE      # 
+###################### 
+.SUFFIXES : .lo .c
+.c.lo:
+	$(AM_V_CC)$(LTCOMPILE) -c -o $@ $<
+
+
+
+######################
+# MAKING RULE        #
+######################
+
+.PHONY: all clean echo go proto service cgo submodule
+
+echo:
+	@echo "root": $(ROOT) 
+	@echo prefix: $(prefix)
+
+go:
+	@echo go module compile and build
+	CGO_CFLAGS=$(CGO_CFLAGS_SERVER) CGO_LDFLAGS=$(CGO_LDFLAGS_SERVER) go build -gcflags '-N -l' server/srx_grpc_server.go
+	CGO_CFLAGS=$(CGO_CFLAGS_SERVER) CGO_LDFLAGS=$(CGO_LDFLAGS_SERVER) go build -gcflags '-N -l' -buildmode=c-shared \
+			   -o server/libsrx_grpc_server.so  server/srx_grpc_server.go
+	CGO_CFLAGS=$(CGO_CFLAGS_CLIENT) CGO_LDFLAGS=$(CGO_LDFLAGS_CLIENT) go build -gcflags '-N -l' client/srx_grpc_client.go
+	CGO_CFLAGS=$(CGO_CFLAGS_CLIENT) CGO_LDFLAGS=$(CGO_LDFLAGS_CLIENT) go build -gcflags '-N -l' -buildmode=c-shared \
+			   -o client/libsrx_grpc_client.so  client/srx_grpc_client.go
 
 
 proto:
 	protoc -I=. --go_out=plugins=grpc:. ./srx_grpc_v6.proto
 
 
-# this service will be used in Makefile at srx-server/src
-service:
-	/usr/bin/libtool --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H  -c -o grpc_service.lo server/grpc_service.c \
-    	-I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src \
-    	-I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/../extras/local/include \
-    	-I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/../_inst/include
-	/usr/bin/libtool --tag=CC   --mode=link   gcc -DHAVE_CONFIG_H  -o libgrpc_service.la grpc_service.lo -rpath `pwd`/.libs \
-    	-L/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/.libs/ -lsrx_util
+config.h:
+	cd $(ROOT)/$(SRX_SERVER)/$(SRC) && $(SHELL) ./config.status config.h
+
+
+service: libgrpc_client_service.la libgrpc_service.la
+
+
+install-service:
 	/usr/bin/libtool --tag=CC   --mode=install cp libgrpc_service.la ${GOPATH}/src/srx_grpc_v6/_inst/lib64
 	/usr/bin/libtool --tag=CC   --finish ${GOPATH}/src/srx_grpc_v6/_inst/lib64
+
+
+submodule-add:
+	git submodule add https://github.com/usnistgov/NIST-BGP-SRx.git
+
+
+submodule-update:
+	@echo submodule update 
+	git submodule update --init --recursive
+
+
+submodule-configure: 
+	@echo submodule srx-server configure only to generate necessary files for grpc service libraries
+	cd $(ROOT)/$(SUBMODULE)/$(SRX_SERVER) && \
+	  ./configure --prefix=$(prefix) sca_dir=$(prefix) --enable-grpc grpc_dir=$(ROOT)
+
+
+submodule-srx-build: 
+	@echo submodule srx-server build
+	cd $(ROOT)/$(SUBMODULE)/$(SRX_SERVER) && \
+	  ./configure --prefix=$(prefix) sca_dir=$(prefix) --enable-grpc grpc_dir=$(ROOT) && \
+	  make all install
+
+
+submodule-api-build: 
+	@echo submodule srx-crypto-api build
+	cd $(ROOT)/$(SUBMODULE)/srx-crypto-api && \
+	  autoreconf -i && ./configure --prefix=$(prefix) CFLAGS="-O0 -g" && \
+	  make all install
+
+
+submodule-qsrx-build: 
+	@echo submodule quagga-srx build
+	cd $(ROOT)/$(SUBMODULE)/$(QSRX) && autoreconf -i && \
+	  ./configure --prefix=$(prefix) --disable-snmp --disable-ospfapi --disable-ospfd --disable-ospf6d \
+	  --disable-babeld --disable-doc --disable-tests --enable-user=root \
+	  --enable-group=root --enable-configfile-mask=0644 --enable-logfile-mask=0644 \
+	  --enable-srxcryptoapi srx_dir=$(prefix) sca_dir=$(prefix) \
+	  --enable-grpc grpc_dir=$(ROOT) && \
+	  make all install
+
+
+patricia: $(ROOT)/$(SUBMODULE)/$(SRX_EXTRAS)/files/Net-Patricia-1.15.tar.gz
+	@echo libpatricia files extraction for header file
+	tar xvfz $(ROOT)/$(SUBMODULE)/$(SRX_EXTRAS)/files/Net-Patricia-1.15.tar.gz -C $(prefix)/include --wildcards --no-anchored '*.h'
+	cp $(prefix)/include/Net-Patricia-1.15/libpatricia/patricia.h $(prefix)/include
+
+
+grpc-srx-patch:
+	@echo patching grpc code into srx-server
+	@#cp -rf $(ROOT)/$(PATCH_FILE) $(ROOT)/$(SUBMODULE)/$(SRX_SERVER)/$(SRC)
+	@#-patch -d $(ROOT)/$(SUBMODULE)/$(SRX_SERVER)/$(SRC) -i $(ROOT)/$(PATCH_FILE) -p0 -f
+	-if patch -d $(ROOT)/$(SUBMODULE)/$(SRX_SERVER)/$(SRC) -i $(ROOT)/$(PATCH_FILE) -p0 -sf --dry-run > /dev/null; then  patch -d $(ROOT)/$(SUBMODULE)/$(SRX_SERVER)/$(SRC) -i $(ROOT)/$(PATCH_FILE) -p0 -f && echo "Patching grpc codes into srx-server done"; else echo "Already patched"; fi
+
+
+grpc-qsrx-patch:
+	@echo patching grpc code into quagga-srx 
+	-if patch -d $(ROOT)/$(SUBMODULE)/$(QSRX) -i $(ROOT)/$(PATCH_FILE_QSRX) -p0 -sf --dry-run > /dev/null; then patch -d $(ROOT)/$(SUBMODULE)/$(QSRX) -i $(ROOT)/$(PATCH_FILE_QSRX) -p0 -f && echo "Patching grpc codes into quagga-srx done"; else echo "Already patched"; fi
+
+
+grpc-autoconf:
+	@echo update configurations with autoconf in srx-server
+	cd $(ROOT)/$(SUBMODULE)/$(SRX_SERVER) && autoreconf -i
+
+
+clean:
+	rm -rf *.o *.lo .libs *~
+	rm -rf srx_grpc_client srx_grpc_server
+	rm -rf libgrpc*.la
+
+
+srx-all: submodule-update submodule-api-build grpc-srx-patch grpc-autoconf submodule-configure service go submodule-srx-build
+
+qsrx-all: submodule-update grpc-qsrx-patch submodule-qsrx-build
+
+all: srx-all qsrx-all
+
+
+
+
+
+###################### 
+# Compile RULE      # 
+###################### 
+
+# this service will be used in Makefile at srx-server/src
+grpc_service.lo: $(SUBMODULE)/$(SRX_SERVER)/$(SRC)/$(SERVER_DIR)/grpc_service.c
+	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(CFLAGS) \
+	-c -o grpc_service.lo $(SUBMODULE)/$(SRX_SERVER)/$(SRC)/$(SERVER_DIR)/grpc_service.c 
+
+grpc_client_service.lo: $(SUBMODULE)/$(SRX_SERVER)/$(SRC)/$(CLIENT_DIR)/grpc_client_service.c
+	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(CFLAGS) \
+	-c -o grpc_client_service.lo $(SUBMODULE)/$(SRX_SERVER)/$(SRC)/$(CLIENT_DIR)/grpc_client_service.c 
+
+log.lo: $(SUBMODULE)/$(SRX_SERVER)/$(SRC)/$(UTIL_DIR)/log.c
+	$(LIBTOOL) --tag=CC	--mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(CFLAGS) \
+	  -c -o log.lo $(SUBMODULE)/$(SRX_SERVER)/$(SRC)/$(UTIL_DIR)/log.c
+
+
+
+
+###################### 
+# Link RULE      # 
+###################### 
+
+libgrpc_client_service_la_OBJECTS =  grpc_client_service.lo log.lo
+libgrpc_service_la_OBJECTS = grpc_service.lo
+am_libgrpc_client_service_la_rpath = -rpath $(libdir)
+am_libgrpc_service_la_rpath = -rpath $(libdir)
+
+libgrpc_client_service.la: $(libgrpc_client_service_la_OBJECTS)  
+	$(LINK) $(am_libgrpc_client_service_la_rpath) $(libgrpc_client_service_la_OBJECTS) $(LIBS)
+libgrpc_service.la: $(libgrpc_service_la_OBJECTS) 
+	$(LINK) $(am_libgrpc_service_la_rpath) $(libgrpc_service_la_OBJECTS) $(LIBS)
 

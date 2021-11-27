@@ -22,15 +22,9 @@ typedef struct { const char *p; ptrdiff_t n; } _GoString_;
 #line 3 "srx_grpc_server.go"
 
 
-
-
-//#cgo LDFLAGS: /opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/.libs/log.o -L/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/.libs -lgrpc_service -Wl,-rpath -Wl,/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server//src//.libs -Wl,--unresolved-symbols=ignore-all
-
-
-
 #include <stdio.h>
 #include "shared/srx_defs.h"
-#include "srx/srx_api.h"
+#include "client/srx_api.h"
 #include "server/grpc_service.h"
 
 

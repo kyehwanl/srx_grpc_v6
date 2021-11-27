@@ -167,3 +167,5 @@ srx-server-v6/src/srx-proxy-0.6.1.0.spec
 srx-server-v6/src/srx-proxy-devel-0.6.1.0.spec
 srx-server-v6/src/stamp-h1
 bgpd.pid
+srx_grpc_client
+srx_grpc_server

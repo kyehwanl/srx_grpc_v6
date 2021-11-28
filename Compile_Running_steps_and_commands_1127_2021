@@ -491,7 +491,59 @@ Compilation Orders for grpc enabled srx development
 
 
 
-10. TODO
+10. Install History Command in Docker container centos:7 TODO
+
+
+    yum -y install git
+    yum -y install epel-release
+    yum -y install golang
+    yum -y install  gcc automake autoconf libtool psmisc readline-devel patch
+    yum -y install wget libconfig libconfig-devel openssl openssl-devel libcrypto.so.* less gcc uthash-devel
+    yum -y install unzip
+
+    go get -u github.com/golang/protobuf/protoc-gen-go
+    go get -u google.golang.org/grpc
+
+   
+    mkdir temp
+    cd temp/
+    wget https://github.com/protocolbuffers/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip
+    unzip protoc-3.6.1-linux-x86_64.zip
+
+    cp bin/protoc /bin/
+    cp -rf include/* /usr/include/
+
+
+    cd /root/go/src/  
+    git clone https://github.com/kyehwanl/srx_grpc_v6.git
+    cd srx_grpc_v6/
+    autoreconf -i
+    ./configure --prefix=/usr/local
+
+
+    make submodule-add
+    make submodule-update
+    make submodule-api-build
+    make grpc-srx-patch
+    make grpc-autoconf
+    make submodule-configure
+    make service
+    make go
+
+    (if running on go module due to the package at other than '$GOPATH/src/', then on Centos 7, 9-(4) error occurs and 
+        it needs to do extra update jobs - update git, re-install golang etc)
+
+    make submodule-srx-build
+
+    make grpc-qsrx-patch
+    make submodule-qsrx-build
+
+
+
+
+
+
+
 
 
 

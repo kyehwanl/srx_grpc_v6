@@ -1,4 +1,9 @@
 
+.PHONY: all go go-old
+
+CGO_CFLAGS_CLIENT_OLD ="-g -Wall -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/../_inst/include/ -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/ -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/../extras/local/include"
+
+CGO_LDFLAGS_CLIENT_OLD = "-L/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/.libs -lgrpc_client_service -Wl,-rpath -Wl,/opt/project/gobgp_test/gowork/src/srx_grpc_v6//srx-server//src/.libs -Wl,--unresolved-symbols=ignore-all"
 
 
 prefix = /opt/project/gobgp_test/gowork/src/srx_grpc_v6/_inst
@@ -26,13 +31,15 @@ all:
 		-I${GOPATH}/src/srx_grpc_v6/srx-server/src/../extras/local/include \
 		-Wl,--unresolved-symbols=ignore-all -lpthread
 
-go-old: 
-	go build -gcflags '-N -l' srx_grpc_client.go
-	go build -gcflags '-N -l' -buildmode=c-shared -o libsrx_grpc_client.so  srx_grpc_client.go
+go-old:
+	CGO_CFLAGS=$(CGO_CFLAGS_CLIENT_OLD) CGO_LDFLAGS=$(CGO_LDFLAGS_CLIENT_OLD) \
+			   go build -gcflags '-N -l' srx_grpc_client.go
+	CGO_CFLAGS=$(CGO_CFLAGS_CLIENT_OLD) CGO_LDFLAGS=$(CGO_LDFLAGS_CLIENT_OLD) \
+			   go build -gcflags '-N -l' -buildmode=c-shared -o libsrx_grpc_client.so  srx_grpc_client.go
 
 
 
 go: 
-	CGO_CFLAGS=$(CGO_CFLAGS_CLIENT) CGO_LDFLAGS=$(CGO_LDFLAGS_CLIENT) go build -gcflags '-N -l' ./srx_grpc_client.go
+	CGO_CFLAGS=$(CGO_CFLAGS_CLIENT) CGO_LDFLAGS=$(CGO_LDFLAGS_CLIENT) go build -gcflags '-N -l' srx_grpc_client.go
 	CGO_CFLAGS=$(CGO_CFLAGS_CLIENT) CGO_LDFLAGS=$(CGO_LDFLAGS_CLIENT) go build -gcflags '-N -l' -buildmode=c-shared \
-			   -o ./libsrx_grpc_client.so  ./srx_grpc_client.go
+			   -o ./libsrx_grpc_client.so  srx_grpc_client.go

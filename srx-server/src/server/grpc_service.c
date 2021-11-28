@@ -473,14 +473,18 @@ static bool processValidationRequest_grpc(unsigned char *data, RET_DATA *rt, uns
     memcpy(rt->data, pdu, length);
     free(pdu);
 
-    printf("rt size: %d\n", rt->size);
-    printf("rt data: \n");
-    printHex(rt->size, rt->data);
+    LOG(LEVEL_INFO, HDR "+ rt size: %d", rt->size);
+    LOG(LEVEL_INFO, HDR "+ rt data: ");
+
+    LogLevel lv = getLogLevel();
+    if (lv >= LEVEL_INFO) {
+      printHex(rt->size, rt->data);
+    }
   
     if ((doOriginVal || doPathVal || doAspaVal) && ((sendFlags & SRX_FLAG_ROA_BGPSEC_ASPA) > 0))
     {
       rt->info = 0x1; // queue enable info
-      printf("rt info: %x\n", rt->info);
+      LOG(LEVEL_INFO, HDR "+ rt info: %x", rt->info);
 
       // Only keep the validation flags.
       hdr->flags = sendFlags & SRX_FLAG_ROA_BGPSEC_ASPA;
@@ -511,11 +515,15 @@ void RunQueueCommand(int size, unsigned char *data, RET_DATA *rt, unsigned int g
 {
   
   LOG(LEVEL_INFO, HDR "[%s] for Notification Queueing Command", __FUNCTION__);
-  printHex(size, data);
+    
+  LogLevel lv = getLogLevel();
+  if ( lv >= LEVEL_INFO)
+    printHex(size, data);
 
   LOG(LEVEL_INFO, HDR "[%s] rt size: %d\n", __FUNCTION__, rt->size);
   LOG(LEVEL_INFO, HDR "[%s] rt data: \n", __FUNCTION__);
-  printHex(rt->size, rt->data);
+  if ( lv >= LEVEL_INFO)
+    printHex(rt->size, rt->data);
 
   bool retVal = true;
   SRXRPOXY_BasicHeader_VerifyRequest* hdr =
@@ -541,7 +549,9 @@ void RunQueueCommand(int size, unsigned char *data, RET_DATA *rt, unsigned int g
 void RunQueueCommand_uid(int size, unsigned char *data, uint32_t updateId, unsigned int grpcClientID)
 {
   LOG(LEVEL_INFO, HDR "[%s] for General purpose Queueing Command", __FUNCTION__);
-  printHex(size, data);
+  LogLevel lv = getLogLevel();
+  if ( lv >= LEVEL_INFO)
+    printHex(size, data);
 
 
   bool retVal = true;
@@ -639,7 +649,10 @@ static void _processPeerChange_grpc(unsigned char *data, RET_DATA *rt, unsigned 
 //int responseGRPC (int size, unsigned char* data)
 RET_DATA responseGRPC (int size, unsigned char* data, unsigned int grpcClientID)
 {
-    setLogLevel(LEVEL_INFO);
+    LogLevel lv = getLogLevel();
+    LOG(LEVEL_INFO, HDR "initial srx server log Level: %d", lv);
+
+    //setLogLevel(LEVEL_INFO);
     LOG(LEVEL_INFO, HDR "response GRPC call");
     LOG(LEVEL_INFO, HDR "[SRx server] [%s] calling - size: %d, grpcClient ID: %02x", __FUNCTION__, size, grpcClientID);
 
@@ -648,7 +661,7 @@ RET_DATA responseGRPC (int size, unsigned char* data, unsigned int grpcClientID)
     printf("ret bool: %d \n", ret);
     */
 
-    LogLevel lv = getLogLevel();
+    //LogLevel lv = getLogLevel();
     LOG(LEVEL_INFO, HDR "srx server log Level: %d", lv);
 
     if (lv >= LEVEL_INFO) {
@@ -744,9 +757,11 @@ RET_DATA responseGRPC (int size, unsigned char* data, unsigned int grpcClientID)
         LOG(LEVEL_INFO, HDR "GoodBye!", pthread_self());
     }
 
-    printf("======= [SRx server][responseGRPC] [pdu type: %d]======= \n "
-        " final Return data which will be sent to the client\n", bhdr->type);
-    printHex(rt.size, rt.data);
+    if (lv >= LEVEL_INFO) {
+      printf("======= [SRx server][responseGRPC] [pdu type: %d]======= \n "
+          " final Return data which will be sent to the client\n", bhdr->type);
+      printHex(rt.size, rt.data);
+    }
     return rt;
 }
 

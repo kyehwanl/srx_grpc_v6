@@ -127,6 +127,8 @@ func InitWorkerPool() bool {
 //export InitSRxGrpc
 func InitSRxGrpc(addr string) bool {
 
+	log_level := C.getLogLevel()
+	log.Printf("client: srx server log level: %d\n", log_level)
 	/* Disable Logging */
 	/*
 		log.SetFlags(0)               // skip all formatting

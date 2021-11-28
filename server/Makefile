@@ -1,3 +1,6 @@
+
+.PHONY: all server client stream callback go go-old
+
 all:
 	go build -gcflags '-N -l' srx_grpc_server.go
 	go build -gcflags '-N -l' -buildmode=c-shared -o libsrx_grpc_server.so  srx_grpc_server.go
@@ -8,9 +11,18 @@ all:
 	-I${GOPATH}/src/srx_grpc_v6/srx-server/src/../extras/local/include \
 	-Wl,--unresolved-symbols=ignore-all
 
+
+CGO_CFLAGS_SERVER_OLD = "-DUSE_GRPC -g -Wall -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/../_inst/include/ -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/client -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/../extras/local/include"
+
+CGO_LDFLAGS_SERVER_OLD = "-L/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server/src/.libs -lgrpc_service -Wl,-rpath -Wl,/opt/project/gobgp_test/gowork/src/srx_grpc_v6/srx-server//src//.libs -Wl,--unresolved-symbols=ignore-all"
+
+
+
 go-old:
-	go build -gcflags '-N -l' srx_grpc_server.go
-	go build -gcflags '-N -l' -buildmode=c-shared -o libsrx_grpc_server.so  srx_grpc_server.go
+	CGO_CFLAGS=$(CGO_CFLAGS_SERVER_OLD) CGO_LDFLAGS=$(CGO_LDFLAGS_SERVER_OLD) \
+			   go build -gcflags '-N -l' srx_grpc_server.go
+	CGO_CFLAGS=$(CGO_CFLAGS_SERVER_OLD) CGO_LDFLAGS=$(CGO_LDFLAGS_SERVER_OLD) \
+			   go build -gcflags '-N -l' -buildmode=c-shared -o libsrx_grpc_server.so  srx_grpc_server.go
 
 prefix = /opt/project/gobgp_test/gowork/src/srx_grpc_v6/_inst
 ROOT= /opt/project/gobgp_test/gowork/src/srx_grpc_v6
@@ -29,9 +41,9 @@ CGO_LDFLAGS_SERVER="-L$(ROOT)/$(SUBMODULE)/$(SRX_SERVER)/$(SRC)/.libs -lgrpc_ser
 
 go:
 	@echo go module compile and build
-	CGO_CFLAGS=$(CGO_CFLAGS_SERVER) CGO_LDFLAGS=$(CGO_LDFLAGS_SERVER) go build -gcflags '-N -l' ./srx_grpc_server.go
+	CGO_CFLAGS=$(CGO_CFLAGS_SERVER) CGO_LDFLAGS=$(CGO_LDFLAGS_SERVER) go build -gcflags '-N -l' srx_grpc_server.go
 	CGO_CFLAGS=$(CGO_CFLAGS_SERVER) CGO_LDFLAGS=$(CGO_LDFLAGS_SERVER) go build -gcflags '-N -l' -buildmode=c-shared \
-			   -o ./libsrx_grpc_server.so  ./srx_grpc_server.go
+			   -o ./libsrx_grpc_server.so  srx_grpc_server.go
 
 
 
@@ -59,15 +71,4 @@ callback:
 
 
 
-protoc:
-	@echo "Generating Go protobuf files"
-	cd ../
-	protoc -I=. --go_out=plugins=grpc:. ./srx_grpc.proto
 
-
-server: protoc
-	@echo "Building Server"
-	go build -gcflags '-N -l' srx_grpc_server.go
-
-
-.PHONY: all server client stream callback

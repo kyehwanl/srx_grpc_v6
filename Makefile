@@ -127,12 +127,13 @@ install-service:
 
 
 submodule-add:
-	git submodule add https://github.com/usnistgov/NIST-BGP-SRx.git
+	-git submodule add https://github.com/usnistgov/NIST-BGP-SRx.git
 
 
-submodule-update:
+submodule-update: submodule-add
 	@echo submodule update 
 	git submodule update --init --recursive
+	cd NIST-BGP-SRx && git checkout 6.1.4
 
 
 submodule-configure: 
@@ -197,7 +198,7 @@ clean:
 
 srx-all: submodule-update submodule-api-build grpc-srx-patch grpc-autoconf submodule-configure service go submodule-srx-build
 
-qsrx-all: submodule-update grpc-qsrx-patch submodule-qsrx-build
+qsrx-all: grpc-qsrx-patch submodule-qsrx-build
 
 all: srx-all qsrx-all
 

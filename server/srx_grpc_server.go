@@ -26,8 +26,8 @@ import (
 	_ "bytes"
 	"encoding/binary"
 	"io"
-	_ "io/ioutil"
-	_ "os"
+	"io/ioutil"
+	"os"
 	"runtime"
 	"time"
 	"unsafe"
@@ -37,8 +37,6 @@ var port = flag.Int("port", 50000, "The server port")
 
 var gStream_verify pb.SRxApi_ProxyVerifyStreamServer
 var gBiStream_verify pb.SRxApi_ProxyVerifyBiStreamServer
-
-//var gbNotifySync bool
 
 //var gCancel context.CancelFunc
 //var done chan bool
@@ -698,7 +696,6 @@ func (s *Server) ProxyVerifyBiStream(stream pb.SRxApi_ProxyVerifyBiStreamServer)
 		// retData comes from processValidationRequest_grpc()
 
 		// only enabled once first notification received, in order not to have accumulated dealy
-		//gbNotifySync = true
 		b := C.GoBytes(unsafe.Pointer(retData.data), C.int(retData.size))
 		log.Printf("\033[1;33m++ [grpc server][ProxyVerifyBiStream](SEND) VERIFY_NOTIFICATION_DATA .info: %x .size: %d \n .data: %#v \033[0m\n",
 			retData.info, retData.size, b)
@@ -761,11 +758,11 @@ func (s *Server) ProxyDeleteUpdate(ctx context.Context, req *pb.SerialPduDeleteU
 
 	retData := C.RET_DATA{}
 	b := C.GoBytes(unsafe.Pointer(retData.data), C.int(retData.size))
-	fmt.Printf("return size: %d \t data: %#v\n", retData.size, b)
+	log.Printf("return size: %d \t data: %#v\n", retData.size, b)
 
 	var updateId uint32
 	updateId = *((*uint32)(unsafe.Pointer(&req.Data[12])))
-	fmt.Printf("update ID: %#v\n", updateId)
+	log.Printf("update ID: %#v\n", updateId)
 
 	C.RunQueueCommand_uid(C.int(req.Length), (*C.uchar)(unsafe.Pointer(&req.Data[0])), C.uint32_t(updateId),
 		C.uint(req.GrpcClientID))
@@ -790,6 +787,8 @@ func NewServer(g *grpc.Server) *Server {
 //export Serve
 func Serve(grpc_port C.int) {
 
+	log_level := C.getLogLevel()
+	log.Printf("srx server log level: %d\n", log_level)
 	// NOTE: here init handling
 	chGbsData = make(chan StreamData) // channel for Proxy GoodbyteStream
 	chProxyStreamData = make(chan StreamData)
@@ -797,7 +796,6 @@ func Serve(grpc_port C.int) {
 
 	// make a channel with a capacity of 100
 	jobChan = make(chan Job, NUM_JobChan)
-	//gbNotifySync = false
 
 	log.Printf("++ [grpc server][Serve] received port number: %d \n", int32(grpc_port))
 
@@ -808,11 +806,11 @@ func Serve(grpc_port C.int) {
 	}
 
 	/* Disable Logging for performance measurement */
-	/*
+	if log_level < 6 {
 		log.SetFlags(0)               // skip all formatting
 		log.SetOutput(ioutil.Discard) // using this as io.Writer to skip logging
 		os.Stdout = nil               // to suppress fmt.Print
-	*/
+	}
 
 	server := NewServer(grpc.NewServer())
 	if err := server.grpcServer.Serve(lis); err != nil {

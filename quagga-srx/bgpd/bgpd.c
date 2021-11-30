@@ -82,7 +82,7 @@ void handleSRxMessages(SRxProxyCommCode mainCode, int subCode, void* userPtr);
 void srx_set_default(struct bgp *bgp);
 int respawnReceivePacket(struct thread *t);
 int respawn_grpc_init(struct thread *t);
-bool grpc_init (SRxProxy* proxy, uint32_t proxyID);
+bool grpc_init (SRxProxy* proxy, uint32_t proxyID, char* host, int srx_port_grpc);
 #endif /* USE_SRX */
 
 /* BGP process wide configuration.  */
@@ -629,50 +629,63 @@ int srx_connect_proxy(struct bgp *bgp)
   if (g_rq != NULL)
   {
 #ifdef USE_GRPC
-    g_rq->proxy = bgp->srxProxy;
-    if (bgp->srxProxy->grpcConnectionInit)
+    if (bgp_config_check (bgp, BGP_CONFIG_SRX_GRPC))
     {
-      connected = connectToSRx_grpc(bgp->srxProxy, bgp->srx_host, bgp->srx_port,
-          bgp->srx_handshakeTimeout, false);  
-
-      if (connected)
+      g_rq->proxy = bgp->srxProxy;
+      if (bgp->srxProxy->grpcConnectionInit)
       {
-        if ( CHECK_FLAG(bgp->srx_config, SRX_CONFIG_EVAL_PATH_DISTR))
-          zlog_info ("\033[92m""Enabled Distributed Evaluation on SRx server <GRPC>""\033[0m" );
+        connected = connectToSRx_grpc(bgp->srxProxy, bgp->srx_host, bgp->srx_port,
+            bgp->srx_handshakeTimeout, false);  
+
+        if (connected)
+        {
+          if ( CHECK_FLAG(bgp->srx_config, SRX_CONFIG_EVAL_PATH_DISTR))
+            zlog_info ("\033[92m""Enabled Distributed Evaluation on SRx server <GRPC>""\033[0m" );
+        }
       }
+      else
+      {
+        zlog_info ("grpc connection is not yet initialized and calling init again soon at %s:%d",
+            bgp->srx_host, bgp->srx_port);
+        g_rq->t_read = thread_add_timer(bm->master, respawn_grpc_init, g_rq, 1); 
+        //else
+        //  zlog_err ("Could not connect to SRx server at %s:%d, check if server(grpc) is "
+              //"running", bgp->srx_host, bgp->srx_port);
+
+
+        // NOTE: GRPC XXX - consider the way of respawning like the one below using tcp socket
+        //
+        // thread add_read uses a socket file descriptor 
+        // So, need to have another quagga timer such as thread_add_timer
+        //
+        // Necessary functions - 
+        //      1. grpc_init(bgp->srxProxy, bgp->srx_proxyID); - bgpd.c::srx_default_set
+        //          1.1 just dialing with grpc port is ok ??
+        //
+        //      2. checkClientConnection - bgp_route.c ?? --> possibly no
+        //
+
+        // t_read is thread, who has event function and times etc (defined in lib/thread.h)
+      }
+      g_rq->t_read = thread_add_timer(bm->master, respawn_grpc_init, g_rq, 10); // retry timer 10 sec
     }
-    else
+    else if (bgp_config_check (bgp, BGP_CONFIG_SRX))
     {
-      zlog_err ("Could not connect to SRx server at %s:%d, check if server(grpc) is "
-                "running", bgp->srx_host, bgp->srx_port);
+        zlog_err ("Could not connect to SRx server at %s:%d, check if server(grpc) is "
+                    "running and initialized", bgp->srx_host, bgp->srx_port);
 
-      // NOTE: GRPC XXX - consider the way of respawning like the one below using tcp socket
-      //
-      // thread add_read uses a socket file descriptor 
-      // So, need to have another quagga timer such as thread_add_timer
-      //
-      // Necessary functions - 
-      //      1. grpc_init(bgp->srxProxy, bgp->srx_proxyID); - bgpd.c::srx_default_set
-      //          1.1 just dialing with grpc port is ok ??
-      //
-      //      2. checkClientConnection - bgp_route.c ?? --> possibly no
-      //
-
-      // t_read is thread, who has event function and times etc (defined in lib/thread.h)
     }
-    g_rq->t_read = thread_add_timer(bm->master, respawn_grpc_init, g_rq, 10); // retry timer 10 sec
-
 #else
     // The last parameter (true) stands for external socket control
     connected = connectToSRx (bgp->srxProxy, bgp->srx_host, bgp->srx_port,
-                              bgp->srx_handshakeTimeout, true);
+        bgp->srx_handshakeTimeout, true);
     if (connected)
     {
       g_rq->proxy = bgp->srxProxy;
       clientFD = getInternalSocketFD(bgp->srxProxy, true);
 
       g_rq->t_read = thread_add_read (bm->master, respawnReceivePacket,
-                                      g_rq, clientFD);
+          g_rq, clientFD);
       bgp->srx_proxyID = bgp->srxProxy->proxyID;
       zlog_info ("Connect to SRx server %s:%d", bgp->srx_host, bgp->srx_port);
 
@@ -684,7 +697,7 @@ int srx_connect_proxy(struct bgp *bgp)
     else
     {
       zlog_err ("Could not connect to SRx server at %s:%d, check if server is "
-                "running", bgp->srx_host, bgp->srx_port);
+          "running", bgp->srx_host, bgp->srx_port);
     }
 #endif /* USE_GRPC */
   }
@@ -804,6 +817,22 @@ int bgp_srx_unset (struct bgp *bgp)
     zlog_info("[%s] bgp exit process", __FUNCTION__);
     disconnectFromSRx (bgp->srxProxy, bgp->srx_keepWindow);
   }
+#ifdef USE_GRPC
+  else if (bgp_config_check (bgp, BGP_CONFIG_SRX_GRPC))
+  {
+    bgp_config_unset (bgp, BGP_CONFIG_SRX_GRPC);
+    XFREE (MTYPE_SRX_HOST, bgp->srx_host);
+
+    if(g_rq->t_read)
+    {
+      zlog_debug ("%s thread cancel", __FUNCTION__);
+      thread_cancel(g_rq->t_read);
+    }
+
+    zlog_info("[%s] bgp exit process", __FUNCTION__);
+    disconnectFromSRx (bgp->srxProxy, bgp->srx_keepWindow);
+  }
+#endif // USE_GRPC
   else
   {
     zlog_info("BGP session is not connected to an SRx server!");
@@ -2822,7 +2851,9 @@ void srx_set_default(struct bgp *bgp)
   memset(bgp->srx_bgpsec_key, 0, sizeof (BGPSecKey));
 
 #ifdef USE_GRPC
-  grpc_init(bgp->srxProxy, bgp->srx_proxyID);
+    // #### TODO: separate host and port with parameter
+  bgp->srx_port_grpc = SRX_DEFAULT_GRPC_PORT;
+  //grpc_init(bgp->srxProxy, bgp->srx_proxyID);
 #endif /* USE_GRPC */
 }
 #endif /* USE_SRX */
@@ -6451,6 +6482,14 @@ static int srx_config_write_configuration (struct vty *vty, struct bgp *bgp)
     vty_out (vty, "%s ! Connect to SRx-server%s", VTY_NEWLINE, VTY_NEWLINE);
     vty_out (vty, " %s%s", SRX_VTY_CMD_CONNECT_SHORT, VTY_NEWLINE);
   }
+#ifdef USE_GRPC
+  else if (bgp_config_check(bgp, BGP_CONFIG_SRX_GRPC))
+  {
+    // CONNECT TO SERVER
+    vty_out (vty, "%s ! Connect to SRx-server (gRPC) %s", VTY_NEWLINE, VTY_NEWLINE);
+    vty_out (vty, " %s %s %d%s ", SRX_VTY_CMD_CONNECT_GRPC_SHORT, bgp->srx_host, bgp->srx_port, VTY_NEWLINE);
+  }
+#endif // USE_GRPC
 
   return 0;
 }
@@ -6739,31 +6778,6 @@ bgp_init (void)
 #endif /* HAVE_SNMP */
 }
 
-#ifdef USE_GRPC
-extern SRxProxy *g_proxy;
-extern void ImpleGoStreamThread (SRxProxy* proxy, uint32_t proxyID);
-
-bool grpc_init (SRxProxy* proxy, uint32_t proxyID)
-{
-    // calling to initialize GRPC on libSRxProxy
-    bool initResult = callSRxGRPC_Init("localhost:50000"); 
-    zlog_debug ("[grpc_init ] proxy: %p,  proxy ID [defaul]: %08x, grpcEnabled[%d]\n", proxy, proxyID, initResult);
-    printf     ("[grpc_init ] proxy: %p,  proxy ID [defaul]: %08x, grpcEnabled[%d]\n", proxy, proxyID, initResult);
-
-    if (!initResult)
-    {
-      zlog_debug ("[grpc_init ] grpc call fail\n");
-      return false; 
-    }
-
-    proxy->grpcConnectionInit = true;
-    g_proxy = proxy;
-
-    // NOTE: here some stream server threads
-    ImpleGoStreamThread(proxy, proxyID);
-    return true;
-}
-#endif /* USE_GRPC */
 
 void
 bgp_terminate (void)
@@ -6792,3 +6806,123 @@ bgp_terminate (void)
       bm->process_rsclient_queue = NULL;
     }
 }
+
+
+#ifdef USE_GRPC
+extern SRxProxy *g_proxy;
+extern void ImpleGoStreamThread (SRxProxy* proxy, uint32_t proxyID);
+
+bool grpc_init (SRxProxy* proxy, uint32_t proxyID, char* host, int srx_port_grpc)
+{
+    // calling to initialize GRPC on libSRxProxy
+    //
+    char addr[25] ={0};
+    sprintf(addr, "%s:%d", host, srx_port_grpc);
+    printf(" ADDR -------------------: %s\n", addr);
+    //bool initResult = callSRxGRPC_Init("localhost:50000"); 
+    bool initResult = callSRxGRPC_Init(addr); 
+    zlog_debug ("[grpc_init ] proxy: %p,  proxy ID [defaul]: %08x, grpcEnabled[%d]", proxy, proxyID, initResult);
+
+    if (!initResult)
+    {
+      zlog_debug ("[grpc_init ] grpc call fail");
+      return false; 
+    }
+
+    proxy->grpcConnectionInit = true;
+    g_proxy = proxy;
+
+    // NOTE: here some stream server threads
+    ImpleGoStreamThread(proxy, proxyID);
+    return true;
+}
+
+
+
+
+
+int bgp_srx_set_grpc(struct bgp *bgp, struct vty *vty, 
+                     const char *host, int port, bool doConnect)
+{
+
+  int  prev_set, same_host = 0; //, same_port = 0;
+
+  prev_set = bgp_config_check (bgp, BGP_CONFIG_SRX_GRPC);
+  zlog_debug(" bgp previous config_already_set(gRPC) checking %d \n", prev_set);
+
+  if (isConnected(bgp->srxProxy))
+  {
+    vty_out (vty, "%% Already connected to SRx-server. Disconnect first!%s",
+                  VTY_NEWLINE);
+    return CMD_WARNING;
+  }
+
+
+  if (prev_set)
+  {
+    same_host = (strcmp (bgp->srx_host, host) == 0);
+    //same_port = (bgp->srx_port == port);
+
+    if (!same_host)
+    {
+      XFREE (MTYPE_SRX_HOST, bgp->srx_host);
+    }
+  }
+
+  bgp_config_set (bgp, BGP_CONFIG_SRX_GRPC);
+  if (!same_host)
+  {
+    bgp->srx_host = XSTRDUP (MTYPE_SRX_HOST, host);
+  }
+  bgp->srx_port_grpc = port;
+  bgp->srx_port = -1; // no use
+
+
+  if (bgp->srxProxy != NULL)
+  {
+    char proxyIDstr[20];
+    char pconfIDstr[20];
+    memset(proxyIDstr, '\0', 20);
+    memset(pconfIDstr, '\0', 20);
+    sprintf(proxyIDstr, "%u.%u.%u.%u",
+               (bgp->srxProxy->proxyID >> 24) & 0xFF,
+               (bgp->srxProxy->proxyID >> 16) & 0xFF,
+               (bgp->srxProxy->proxyID >>  8) & 0xFF,
+                bgp->srxProxy->proxyID & 0xFF);
+    sprintf(pconfIDstr, "%u.%u.%u.%u",
+               (bgp->srx_proxyID >> 24) & 0xFF,
+               (bgp->srx_proxyID >> 16) & 0xFF,
+               (bgp->srx_proxyID >>  8) & 0xFF,
+                bgp->srx_proxyID & 0xFF);
+
+    zlog_debug(" current srx_proxy_id: %s (%u) ", proxyIDstr,
+               bgp->srxProxy->proxyID);
+
+    zlog_debug(" Proxy instantiated with proxy id %s (%u) and configured "
+               "with proxy id %s (%u)\n",proxyIDstr, bgp->srxProxy->proxyID,
+               pconfIDstr, bgp->srx_proxyID);
+
+
+    // call grpc init
+    //
+    grpc_init(bgp->srxProxy, bgp->srx_proxyID, bgp->srx_host, bgp->srx_port_grpc);
+
+    // Only connect if requested.
+    if (doConnect)
+    {
+      // Code moved into _bgp_srx_connect as result of BZ301
+      if (srx_connect_proxy(bgp) == 1)
+      {
+        // it did not connect because we are still in configuration state and
+        // the necessary framework is not configured yet. It will be done then.
+        // See bgp_route.c::initUnSocket
+        flagDoConnectSrx = bgp;
+      }
+    }
+  }
+
+  return CMD_SUCCESS;
+
+}
+
+#endif /* USE_GRPC */

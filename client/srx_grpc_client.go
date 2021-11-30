@@ -139,7 +139,7 @@ func InitSRxGrpc(addr string) bool {
 
 	log.Printf("[InitSRxGrpc] InitSRxGrpc Called \n")
 	//conn, err := grpc.Dial(addr, grpc.WithInsecure())
-	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(5*time.Second))
+	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(100*time.Millisecond))
 	//conn, err := grpc.Dial(addr, grpc.WithBlock())
 	if err != nil {
 		log.Printf("[InitSRxGrpc] did not connect: %v", err)

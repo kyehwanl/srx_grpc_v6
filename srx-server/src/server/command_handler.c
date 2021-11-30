@@ -78,6 +78,10 @@
 #include "util/prefix.h"
 #include "util/slist.h"
 
+#ifdef USE_GRPC
+#include "server/libsrx_grpc_server.h"
+#endif
+
 #define HDR "([0x%08X] Command Handler): "
 
 // Forward declaration

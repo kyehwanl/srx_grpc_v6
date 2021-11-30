@@ -530,20 +530,21 @@ bool disconnectFromSRx(SRxProxy* proxy, uint16_t keepWindow)
   {
 #ifdef USE_GRPC
     if(proxy->grpcClientEnable && connHandler->grpcClientID)
-      {
-        LOG(LEVEL_INFO, "### [%s] ###  Reset process ... ", __FUNCTION__);
-        sendGoodbye_grpc(connHandler, keepWindow);
-        connHandler->grpcClientID = 0;
-        proxy->grpcClientEnable = false;
-        proxy->grpcConnectionInit = false;
+    {
+      LOG(LEVEL_INFO, "### [%s] ###  Reset process ... ", __FUNCTION__);
+      sendGoodbye_grpc(connHandler, keepWindow);
+      connHandler->grpcClientID = 0;
+      proxy->grpcClientEnable = false;
+      proxy->grpcConnectionInit = false;
 
-      }
-      else
-        sendGoodbye(connHandler, keepWindow);
-#else
+    }
+    else
+    {
       sendGoodbye(connHandler, keepWindow);
-#endif
+    }
+#else
     sendGoodbye(connHandler, keepWindow);
+#endif
     connHandler->established = false;
     releaseClientConnectionHandler(connHandler);
     callCMgmtHandler(proxy, COM_PROXY_DISCONNECT, COM_PROXY_NO_SUBCODE);
@@ -1474,6 +1475,24 @@ bool connectToSRx_grpc(SRxProxy* proxy, const char* host, int port,
   ClientConnectionHandler* connHandler =
                                    (ClientConnectionHandler*)proxy->connHandler;
 
+  // Initialize the grpc client socket 
+  ClientSocket client_sock = connHandler->clSock;
+
+  client_sock.oldFD = -1;
+  client_sock.type = SRX_PROXY_GRPC_SOCKET;
+  client_sock.clientFD = port;
+  client_sock.canBeClosed = false;  // grpc socket fd should not be closed
+  client_sock.reconnect = false;
+
+
+
+  if (!createRWLock(&connHandler->queueLock))
+  {
+    closeClientSocket(&connHandler->clSock);
+    RAISE_ERROR("%s:%d Could not aquire read write lock!", __FUNCTION__, __LINE__);
+    return false;
+  }
+
   connHandler->packetHandler = dispatchPackets;
   connHandler->stop = false;
   connHandler->handshake_timeout = SRX_DEFAULT_HANDSHAKE_TIMEOUT;
@@ -1495,17 +1514,7 @@ bool connectToSRx_grpc(SRxProxy* proxy, const char* host, int port,
   // following return value will be determined by calling (fn_packetHandler --> fn_dispatchPackets)
   return connHandler->established;
 }
-/*
-//int responseGRPC (int size)
-void responseGRPC(void)
-{
-    printf("[%s] calling - size:  \n", __FUNCTION__);
-    //printf("[%s] calling - size: %d \n", __FUNCTION__, size);
 
-    //return 0;
-}
-
-*/
 
 void verifyUpdate_grpc(SRxProxy* proxy, uint32_t localID,
                   bool usePrefixOriginVal, bool usePathVal, bool useAspaVal,
@@ -1577,7 +1586,7 @@ bool callSRxGRPC_Init(const char* addr)
     gs_addr.n = strlen((const char*)addr);
 
     bool res = InitSRxGrpc(gs_addr); // res:0 failure to connect, res:1 success to connect
-    LOG(LEVEL_NOTICE, HDR  "Init SRx GRPC result: %d (0: fail, 1:sucess) \n", res);
+    LOG(LEVEL_NOTICE, HDR  "Init SRx GRPC result: %d (0: fail, 1:sucess) ", res);
 
     return res;
 }

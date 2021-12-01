@@ -239,13 +239,12 @@ BGPD = bgpd
 BUILD_TESTS = 
 CC = gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/quagga-srx/../_inst/include -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/quagga-srx/../_inst//include -O0 -fno-omit-frame-pointer -g -Wall -Wsign-compare -Wpointer-arith -Wbad-function-cast -Wwrite-strings -Wmissing-prototypes -Wmissing-declarations -Wchar-subscripts -Wcast-qual
+CFLAGS = -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/quagga-srx/../_inst/include -I/opt/project/gobgp_test/gowork/src/srx_grpc_v6/quagga-srx/../_inst//include -Os -fno-omit-frame-pointer -g -Wall -Wsign-compare -Wpointer-arith -Wbad-function-cast -Wwrite-strings -Wmissing-prototypes -Wmissing-declarations -Wchar-subscripts -Wcast-qual
 CONFDATE = 20211028
 CPP = gcc -E
 CPPFLAGS = 
 CURSES = 
 CYGPATH_W = echo
-#DEFS = -DHAVE_CONFIG_H -DSYSCONFDIR=\"$(sysconfdir)/\" -D__TIME_MEASURE__
 DEFS = -DHAVE_CONFIG_H -DSYSCONFDIR=\"$(sysconfdir)/\"
 DEPDIR = .deps
 DLLTOOL = false
@@ -265,7 +264,7 @@ HAVE_LIBSRxCryptoAPI = 1
 HAVE_LIBSRxProxy = 1
 IF_METHOD = if_netlink.o
 IF_PROC = 
-INCLUDES =  -I.. -I$(top_srcdir) -I$(top_srcdir)/lib -I$(top_builddir)/lib $(BGPD_INCLUDES) -I/opt/project/tm-library/tm_rdtsc
+INCLUDES =  -I.. -I$(top_srcdir) -I$(top_srcdir)/lib -I$(top_builddir)/lib $(BGPD_INCLUDES) 
 INSTALL = /bin//install -c
 INSTALL_DATA = ${INSTALL} -m 644
 INSTALL_PROGRAM = ${INSTALL}
@@ -414,8 +413,6 @@ INSTALL_SDATA = /bin//install -c -m 600
 GRPC_SERVER_LIBS = -lsrx_grpc_server
 GRPC_CLIENT_LIBS = -lsrx_grpc_client
 GRPC_LIBS = $(GRPC_SERVER_LIBS) $(GRPC_CLIENT_LIBS)
-
-#GRPC_DIR = /opt/project/gobgp_test/gowork/src/srx_grpc
 GRPC_DIR = $(grpc_dir)
 GRPC_SERVER_PATH = $(GRPC_DIR)/server
 GRPC_CLIENT_PATH = $(GRPC_DIR)/client
@@ -426,7 +423,6 @@ GRPC_CLIENT_RPATH = -Wl,-rpath -Wl,$(GRPC_CLIENT_PATH)
 #GRPC_CLIENT_RPATH = -rpath '$(GRPC_CLIENT_PATH)'
 GRPC_CFLAGS = -I$(GRPC_DIR)
 AM_CFLAGS = $(PICFLAGS)
-#AM_LDFLAGS = $(PILDFLAGS) -ldl -L/opt/project/tm-library/tm_rdtsc -ltm_rdtsc -Wl,-rpath -Wl,/opt/project/tm-library/tm_rdtsc/.libs
 AM_LDFLAGS = $(PILDFLAGS) -ldl
 noinst_LIBRARIES = libbgp.a
 libbgp_a_SOURCES = \

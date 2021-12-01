@@ -243,6 +243,7 @@ func RunProxyHello(data []byte) (*C.uchar, uint32) {
 	resp, err := cli.ProxyHello(context.Background(), &req)
 	if err != nil {
 		log.Printf("+ [grpc client][RunProxyHello] Error - could not receive: (%v)\n", err)
+		return nil, 0
 	}
 
 	log.Printf("+ [grpc client][RunProxyHello] HelloRequest	: %#v\n", req)

@@ -1,7 +1,6 @@
 ## Process this file with automake to produce Makefile.in.
 
-INCLUDES = @INCLUDES@ -I.. -I$(top_srcdir) -I$(top_srcdir)/lib -I$(top_builddir)/lib $(BGPD_INCLUDES) -I/opt/project/tm-library/tm_rdtsc
-#DEFS = @DEFS@ -DSYSCONFDIR=\"$(sysconfdir)/\" -D__TIME_MEASURE__
+INCLUDES = @INCLUDES@ -I.. -I$(top_srcdir) -I$(top_srcdir)/lib -I$(top_builddir)/lib $(BGPD_INCLUDES) 
 DEFS = @DEFS@ -DSYSCONFDIR=\"$(sysconfdir)/\"
 INSTALL_SDATA=@INSTALL@ -m 600
 
@@ -11,7 +10,6 @@ GRPC_SERVER_LIBS = -lsrx_grpc_server
 GRPC_CLIENT_LIBS = -lsrx_grpc_client
 GRPC_LIBS = $(GRPC_SERVER_LIBS) $(GRPC_CLIENT_LIBS)
 
-#GRPC_DIR = /opt/project/gobgp_test/gowork/src/srx_grpc
 GRPC_DIR = $(grpc_dir)
 GRPC_SERVER_PATH = $(GRPC_DIR)/server
 GRPC_CLIENT_PATH = $(GRPC_DIR)/client
@@ -28,7 +26,6 @@ endif
 
 
 AM_CFLAGS = $(PICFLAGS)
-#AM_LDFLAGS = $(PILDFLAGS) -ldl -L/opt/project/tm-library/tm_rdtsc -ltm_rdtsc -Wl,-rpath -Wl,/opt/project/tm-library/tm_rdtsc/.libs
 AM_LDFLAGS = $(PILDFLAGS) -ldl
 
 noinst_LIBRARIES = libbgp.a

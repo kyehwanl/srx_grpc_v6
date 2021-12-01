@@ -1463,6 +1463,13 @@ bool connectToSRx_grpc(SRxProxy* proxy, const char* host, int port,
   //printf(" ---- sleep 5 sec delaying hello request \n");
   //sleep(5);
   struct RunProxyHello_return tResp = RunProxyHello(gopdu);
+
+  if (tResp.r0 == NULL)
+  {
+    printf("------- [SRx Client](srx_api.c :: connectToSRx grpc) hello response ERROR ----------\n");
+    return false;
+  }
+
   unsigned char* pRes = tResp.r0;
   memcpy(result, pRes, sizeof(SRXPROXY_HELLO_RESPONSE));
 
@@ -1584,6 +1591,7 @@ bool callSRxGRPC_Init(const char* addr)
         n : 0
     };
     gs_addr.n = strlen((const char*)addr);
+    printf(" addr: %s  digit count:%d \n", gs_addr.p, gs_addr.n);
 
     bool res = InitSRxGrpc(gs_addr); // res:0 failure to connect, res:1 success to connect
     LOG(LEVEL_NOTICE, HDR  "Init SRx GRPC result: %d (0: fail, 1:sucess) ", res);

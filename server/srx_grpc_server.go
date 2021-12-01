@@ -800,7 +800,8 @@ func Serve(grpc_port C.int) {
 	log.Printf("++ [grpc server][Serve] received port number: %d \n", int32(grpc_port))
 
 	flag.Parse()
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", int32(grpc_port)))
+	//lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", int32(grpc_port)))
+	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", int32(grpc_port)))
 	if err != nil {
 		log.Printf("failed to listen: %v", err)
 	}

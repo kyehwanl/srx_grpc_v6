@@ -56,10 +56,6 @@ Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 #include "bgpd/bgp_vty.h"
 #include "bgpd/bgp_mpath.h"
 
-#if defined (__TIME_MEASURE__)
-#include "libtm_rdtsc.h"
-#endif /* __TIME_MEASURE__ */
-
 #ifdef USE_SRX
 #include <sys/un.h>
 #include "srx/srx_defs.h"
@@ -2748,9 +2744,6 @@ bgp_process_rsclient (struct work_queue *wq, void *data)
 static wq_item_status
 bgp_process_main (struct work_queue *wq, void *data)
 {
-#if defined (__TIME_MEASURE__)
-  static unsigned long tCount=0;
-#endif /* __TIME_MEASURE__ */
   struct bgp_process_queue *pq = data;
   struct bgp *bgp = pq->bgp;
   struct bgp_node *rn = pq->rn;
@@ -2763,15 +2756,6 @@ bgp_process_main (struct work_queue *wq, void *data)
   struct listnode *node, *nnode;
   struct peer *peer;
 
-#if defined (__TIME_MEASURE__)
-#if 0
-      if(tCount==0)
-      {
-        printf("[%s] Start Receiving Upto %ld Counts...\n", __FUNCTION__, g_measureCount);
-        clk_t0= rdtsc();
-      }
-#endif
-#endif /* __TIME_MEASURE__ */
   /* Best path selection. */
   bgp_best_selection (bgp, rn, &bgp->maxpaths[afi][safi], &old_and_new);
   old_select = old_and_new.old;
@@ -2831,22 +2815,6 @@ bgp_process_main (struct work_queue *wq, void *data)
     bgp_info_reap (rn, old_select);
 
   UNSET_FLAG (rn->flags, BGP_NODE_PROCESS_SCHEDULED);
-#if defined (__TIME_MEASURE__)
-#if 00
-      tCount++;
-      //if(tCount >= g_measureCount && g_measureCount != 0)
-#if 0
-      if(tCount >= 500000)
-      {
-        clk_t1 = rdtsc();
-        print_clock_time(clk_t1, clk_t0, "bgp_process_main");
-        tCount=0;
-      }
-#else
-      printf( "[%s] count : %d\n", __FUNCTION__, tCount);
-#endif
-#endif
-#endif /* __TIME_MEASURE__ */
   return WQ_SUCCESS;
 }
 
@@ -3436,13 +3404,6 @@ uint32_t getNextLocalID(void)
 void verify_update (struct bgp *bgp, struct bgp_info *info,
                     SRxDefaultResult* defResult, bool doRegisterLocalID)
 {
-#if defined (USE_GRPC) && defined (__TIME_MEASURE__)
-  static unsigned int valCount=0;
-  extern unsigned int g_measureCount;
-  unsigned long long val_end_clock;
-#endif /* __TIME_MEASURE__ */
-
-
   /* the received extend community value handling */
   if (CHECK_FLAG (bgp->srx_ecommunity_flags, SRX_BGP_FLAG_ECOMMUNITY))
   {
@@ -3616,29 +3577,9 @@ void verify_update (struct bgp *bgp, struct bgp_info *info,
       }
 
 #ifdef USE_GRPC
-#if defined (__TIME_MEASURE__) 
-      if(valCount == 0) {
-        clk_t0 = rdtsc();
-      }
-#endif /* __TIME_MEASURE__ */
-
       //printf("prefix: %s \/%d \n", inet_ntoa(prefix->ip.addr.v4.in_addr), prefix->length);
       verifyUpdate_grpc(bgp->srxProxy, info->localID, useOriginVal, usePathVal,
                     useAspaVal, defResult, prefix, oas, bgpsec, asPathList);
-#if defined (__TIME_MEASURE__) 
-      valCount++;
-      //printf("[%d] ", valCount);
-      if(valCount >= g_measureCount)
-      {
-        val_end_clock = rdtsc();
-        printf(" validate count reached %ld and terminate \n", g_measureCount);
-        valCount =0;
-        //exit(0);
-        print_clock_time(end_clock, start_clock,      "Receiving time");
-        print_clock_time(val_end_clock , clk_t0,      "validation time :");
-        print_clock_time(val_end_clock , start_clock, "overall time (including validation) :");
-      }
-#endif /* __TIME_MEASURE__ */
 
 #else   /* USE_GRPC */
       verifyUpdate(bgp->srxProxy, info->localID, useOriginVal, usePathVal, 

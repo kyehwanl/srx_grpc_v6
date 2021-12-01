@@ -77,9 +77,8 @@ BUILD_SRX = $(shell cd $(ROOT)/$(SUBMODULE)/$(SRX_SERVER) && /bin/sh -c "./confi
 BUILD_API = $(shell cd $(ROOT)/$(SUBMODULE)/srx-crypto-api && ./configure --prefix=$(prefix) CFLAGS="-O0 -g" && make all install)
 AUTO_CMD = $(shell  cd $(ROOT)/$(SUBMODULE)/$(SRX_SERVER) && autoreconf -i )
 
-PATCH_FILE = diff_grpc_srx-server-src_github_v614.patch 
-PATCH_FILE_QSRX = diff_grpc_quagga-srx-github_v614.patch
-
+PATCH_FILE_SRX = diff_grpc_srx-server_github_v614.patch 
+PATCH_FILE_QSRX = diff_grpc_quagga-srx_github_v614.patch
 
 ###################### 
 # SUFFIXES RULE      # 
@@ -177,7 +176,7 @@ grpc-srx-patch:
 	@echo patching grpc code into srx-server
 	@#cp -rf $(ROOT)/$(PATCH_FILE) $(ROOT)/$(SUBMODULE)/$(SRX_SERVER)/$(SRC)
 	@#-patch -d $(ROOT)/$(SUBMODULE)/$(SRX_SERVER)/$(SRC) -i $(ROOT)/$(PATCH_FILE) -p0 -f
-	-if patch -d $(ROOT)/$(SUBMODULE)/$(SRX_SERVER)/$(SRC) -i $(ROOT)/$(PATCH_FILE) -p0 -sf --dry-run > /dev/null; then  patch -d $(ROOT)/$(SUBMODULE)/$(SRX_SERVER)/$(SRC) -i $(ROOT)/$(PATCH_FILE) -p0 -f && echo "Patching grpc codes into srx-server done"; else echo "Already patched"; fi
+	-if patch -d $(ROOT)/$(SUBMODULE)/$(SRX_SERVER)/$(SRC) -i $(ROOT)/$(PATCH_FILE_SRX) -p0 -sf --dry-run > /dev/null; then  patch -d $(ROOT)/$(SUBMODULE)/$(SRX_SERVER)/$(SRC) -i $(ROOT)/$(PATCH_FILE_SRX) -p0 -f && echo "Patching grpc codes into srx-server done"; else echo "Already patched"; fi
 
 
 grpc-qsrx-patch:

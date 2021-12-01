@@ -50,9 +50,6 @@ Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 #include "bgpd/bgp_mplsvpn.h"
 #include "bgpd/bgp_advertise.h"
 #include "bgpd/bgp_vty.h"
-#if defined (__TIME_MEASURE__)
-#include "libtm_rdtsc.h"
-#endif /* __TIME_MEASURE__ */
 
 int stream_put_prefix (struct stream *, struct prefix *);
 
@@ -2770,10 +2767,6 @@ bgp_read (struct thread *thread)
 
   size = (peer->packet_size - BGP_HEADER_SIZE);
 
-#if defined (__TIME_MEASURE__)
-  //unsigned int g_measureCount;
-  static unsigned long tCount=0;
-#endif /* __TIME_MEASURE__ */
 
   /* Read rest of the packet and call each sort of packet routine */
   switch (type)
@@ -2783,25 +2776,8 @@ bgp_read (struct thread *thread)
       bgp_open_receive (peer, size); /* XXX return value ignored! */
       break;
     case BGP_MSG_UPDATE:
-#if defined (__TIME_MEASURE__)
-      if(tCount==0)
-      {
-        printf("[%s] Start Receiving Upto %ld Counts...\n", __FUNCTION__, g_measureCount);
-        start_clock = rdtsc();
-      }
-#endif /* __TIME_MEASURE__ */
       peer->readtime = bgp_recent_clock ();
       bgp_update_receive (peer, size);
-#if defined (__TIME_MEASURE__)
-      tCount++;
-      //printf ("%d ", tCount);
-      if(tCount >= g_measureCount && g_measureCount != 0)
-      {
-        end_clock = rdtsc();
-        //print_clock_time(end_clock, start_clock, "receive test");
-        tCount=0;
-      }
-#endif /* __TIME_MEASURE__ */
       break;
     case BGP_MSG_NOTIFY:
       bgp_notify_receive (peer, size);

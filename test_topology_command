@@ -1,0 +1,65 @@
+
+1. 2 quagga clients connection test
+======================================
+
+ (Caution) docker case, it needs to modify srxcryptoapi.conf, in /usr/etc/srxcryptoapi.conf
+     key_vault should be replaced
+         key_vault = "/usr/opt/bgp-srx-examples/bgpsec-keys/" with "/var/lib/bgpsec-keys"
+
+
+
+
+(1) srx_server  - docker container 
+
+    A.
+    docker run --rm -it --net bgpsecimples_bgp_net --ip 172.37.0.100 --name srx_server_grpc  \
+       -p 17900:17900 -p 50000:50000 -p 17901:17901 \
+       -v /opt/project/docker_test/bgpsecImples/:/etc/bgpsecImples/   \
+       -v /opt/project/docker_test/bgpsecImples/keys:/var/lib/bgpsec-keys   \
+       nist/srx-grpc:6.1  bash
+
+    B.
+    srx_server
+
+
+(2) gRPC quaggasrx - localhost
+
+
+    sudo /opt/project/gobgp_test/gowork/src/srx_grpc_v6/quagga-srx/bgpd/.libs/bgpd \
+     -f /opt/project/docker_test/bgpsecImples/bgpd.docker.conf.grpc.bgpsec.test3
+
+
+
+(3) quaggasrx (tcp) - docker container
+
+    A.
+    docker run --rm -it --net bgpsecimples_bgp_net --ip 172.37.0.101 --name qsrx  \
+        -p 2515:2505   -p 17910:17900 -p 50010:50000 -p 17911:17901 -p 3231:323 -p 1791:179 \
+        -v /opt/project/docker_test/bgpsecImples/:/etc/bgpsecImples/    \
+        -v /opt/project/docker_test/bgpsecImples/keys:/var/lib/bgpsec-keys   \
+          nist-bgp-srx:6  bash
+
+    B.
+    /root/NIST-BGP-SRx/quagga-srx/bgpd/bgpd -f /etc/bgpsecImples/bgpd.docker.conf.bgpsec.test3
+
+
+
+
+(4) traffic gen, bgpsecio
+
+    172.37.0.2
+    bgpsecio -f /etc/bgpsecImples/bgpsecio.docker.conf.grpc.bgpsec.test1
+
+
+(5) traffic generator, exabgp-srx
+
+    172.37.0.3
+    env exabgp.daemon.user=root exabgp /etc/bgpsecImples/exabgp.docker.conf.bgpsec.test3
+    
+
+
+
+2. using ns 
+============
+
+    easy to do debugging on the wire

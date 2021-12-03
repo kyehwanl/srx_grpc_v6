@@ -57,6 +57,8 @@ static bool processHandshake_grpc(unsigned char *data, RET_DATA *rt)
   //cthread->caddr	  = caddr;
   cthread->type_grpc_client = true;
 
+  // the same way of calling  handleStatusChange()
+  cthread->svrSock->statusCallback (cthread->svrSock, cthread, -1, true, (void*)grpcServiceHandler.svrConnHandler);
 
   LOG(LEVEL_INFO, HDR "[SRx server][grpc service](Hello Resonse) Obtained cthread: %p \n", cthread);
 

@@ -876,12 +876,6 @@ static bool _processUpdateValidation(CommandHandler* cmdHandler,
     }    
   }
   
-#ifdef USE_GRPC
-  // [grpc] close send stream from server
-  //if (cmdHandler->grpcEnable)
-      //cb_proxy(0, NULL);
-#endif
-  
   return processed;
 }
 
@@ -1109,6 +1103,7 @@ bool broadcastResult(CommandHandler* self, SRxValidationResult* valResult)
   // Prepare the array of clients.
   uint8_t clientSize = self->updCache->minNumberOfClients;
   uint8_t clients[clientSize];
+  memset(clients, 0x0, sizeof(uint8_t) * clientSize);
   ServerClient* client = NULL;
 
   int clientCt = getClientIDsOfUpdate(self->updCache, &valResult->updateID,
@@ -1139,20 +1134,23 @@ bool broadcastResult(CommandHandler* self, SRxValidationResult* valResult)
 
     /* extract a specific client to send packet */
     retVal = false;
-#ifdef USE_GRPC
-    if (self->grpcEnable)
-        cb_proxy(pduLength, pdu);
-#endif
 
     while  (clientCt-- > 0)
     {
       // work the clients array backwards - saves maintaining a counter variable
       if (self->svrConnHandler->proxyMap[clients[clientCt]].isActive)
       {
+#ifdef USE_GRPC
+        if (self->svrConnHandler->proxyMap[clients[clientCt]].grpcClient)
+        {
+          if (self->grpcEnable)
+            cb_proxy(pduLength, pdu);
+        }
+#endif // USE_GRPC
         client = self->svrConnHandler->proxyMap[clients[clientCt]].socket;
 
         retVal |= sendPacketToClient(&self->svrConnHandler->svrSock,
-                                     client , pdu, pduLength);
+            client , pdu, pduLength);
       }
       // If the mapping is inactive the proxy might be in reboot.
     }

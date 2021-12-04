@@ -891,7 +891,14 @@ int closeClientConnection(ServerSocket* self, ServerClient* client)
   LOG(LEVEL_DEBUG, HDR "Close and remove client: Thread [0x%08X]; [ID :%u]; "
                        "[FD: 0x%08X]", pthread_self() , clientThread->thread,
                        clientThread->proxyID, clientThread->clientFD);
-  
+#ifdef USE_GRPC
+  if (clientThread->svrSock->statusCallback != NULL)
+  {
+    clientThread->svrSock->statusCallback(clientThread->svrSock, clientThread, 
+                                        -1, false, clientThread->svrSock->user);
+  }
+#endif // USE_GRPC
+
   //deleteMapping(self, clientThread);
   _killClientThread(clientThread);
   LOG(LEVEL_DEBUG, HDR "Client connection [ID:%u] closed!", pthread_self(),

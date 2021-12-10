@@ -173,22 +173,26 @@ static bool single_sendResult(ServerClient* client, void* data, size_t size)
 
 #ifdef USE_GRPC
   if(!clt->type_grpc_client)
-#endif
   {
+#endif
     // Only when still active
     if (clt->active)
     {
       lockMutex(&clt->writeMutex);
       sendData(&clt->clientFD, data, (PacketLength)size);
       unlockMutex(&clt->writeMutex);
+#ifdef USE_GRPC
       retVal = true;
+#endif // USE_GRPC
     }
     else
     {
       RAISE_ERROR("Trying to send a packet over an inactive connection");
       retVal = false;
     }
+#ifdef USE_GRPC
   }
+#endif // USE_GRPC
   return retVal;
 }
 

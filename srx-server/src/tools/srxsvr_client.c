@@ -219,6 +219,13 @@ static struct timespec stat_stopTime;
 #ifdef USE_GRPC
 void doConnect_grpc(bool log, char** argPtr);
 void doVerify_grpc(bool log, char** argPtr);
+void doVerify_db_grpc(bool log, char** argPtr);
+extern bool callSRxGRPC_Init(const char* addr);
+extern bool connectToSRx_grpc(SRxProxy*, const char*, int, int, bool);
+
+extern void verifyUpdate_grpc(SRxProxy*, uint32_t, bool, bool, bool,
+                  SRxDefaultResult*, IPPrefix*, uint32_t, 
+                  BGPSecData*, SRxASPathList);
 #endif
 /**
  * Increments the notification counter. This number contains the notifications
@@ -869,6 +876,7 @@ bool promptBool(char** argPtr, const char* msg, bool* value, bool* defValue)
  * @param fmt The formated string
  * @param ... possible parameters
  */
+int vasprintf(char **strp, const char *fmt, va_list ap);
 void addToHistory(const char* fmt, ...)
 {
   if (!scriptMode)
@@ -1407,7 +1415,7 @@ void doVerify(bool log, char** argPtr)
   bgpsecInput = prompt(argPtr, "(Verify) BGPSEC some string ? ");
 
 
-
+#ifdef USE_GRPC
   /* 
    *  on command line, "verify 1 3 65005 100.1.0.0/24 3 3" without bgpsec string,
    *  then will fall into this following code
@@ -1424,6 +1432,7 @@ void doVerify(bool log, char** argPtr)
       0x82, 0x7f, 0x50, 0xe6, 0x5a, 0x5b, 0xd7, 0x8c, 0xd1, 0x81, 0x3d, 0xbc, 0xca, 0xa8, 0x2d, 0x27,
       0x47, 0x60, 0x25, 0xe0, 0x8c, 0xda, 0x49, 0xf9, 0x1e, 0x22, 0xd8, 0xc0, 0x8e
   };
+#endif // USE_GRPC
 
   if (bgpsecInput == '\0')
   {
@@ -1439,6 +1448,7 @@ void doVerify(bool log, char** argPtr)
     bgpsec.attr_length = strlen(bgpsecInput)+1;
     bgpsec.bgpsec_path_attr = (uint8_t*)bgpsecInput;
 
+#ifdef USE_GRPC
       /*
     bgpsec.numberHops = 1;
     bgpsec.asPath = aspath;
@@ -1448,6 +1458,7 @@ void doVerify(bool log, char** argPtr)
     bgpsec.safi = 1;
     bgpsec.local_as = htonl(0xedfd0000);
     */
+#endif // USE_GRPC
   }
   
   
@@ -1941,7 +1952,7 @@ bool processLine(bool log, char* line)
   else IF_EQ_DO(CMD_CONNECT_GRPC, doConnect_grpc(log, &arg))
   else IF_EQ_DO(CMD_VERIFY_GRPC, doVerify_grpc(log, &arg))
   else IF_EQ_DO(CMD_VERIFY_DB_GRPC, doVerify_db_grpc(log, &arg))
-#endif
+#endif // USE_GRPC 
     
   else
   {
@@ -2494,6 +2505,7 @@ void doVerify_db_grpc(bool log, char** argPtr)
     stat_requests_send++;
   }
 
+  /*
   // The method verifyUpdate will go into wait mode if receipt is requested.
   int i;
   for (i=0; i<100000; i++)
@@ -2503,6 +2515,7 @@ void doVerify_db_grpc(bool log, char** argPtr)
                    (method & SRX_FLAG_BGPSEC) == SRX_FLAG_BGPSEC,
                    &defResult, &prefix, as32, &bgpsec);
   }
+  */
 }
 
 #endif

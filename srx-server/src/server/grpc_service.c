@@ -13,6 +13,7 @@ static bool sendSynchRequest_grpc();
 
 extern bool sendError(uint16_t errorCode, ServerSocket* srvSoc, ServerClient* client, bool useQueue);
 extern uint32_t generateIdentifier(uint32_t originAS, IPPrefix* prefix, BGPSecData* data);
+extern void cb_proxyGoodBye(SRXPROXY_GOODBYE p0);
 
 __attribute__((always_inline)) inline void printHex(int len, unsigned char* buff) 
 {                                                                                 

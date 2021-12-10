@@ -77,7 +77,7 @@
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
-  
+
 
 /** This type specifies the different error codes the proxy provides. */
 typedef enum

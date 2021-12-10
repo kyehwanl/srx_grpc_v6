@@ -642,6 +642,7 @@ bool sendError(uint16_t errorCode, ServerSocket* srvSoc, ServerClient* client,
   pdu->errorCode = htons(errorCode);
   pdu->length    = htonl(length);
 #ifdef USE_GRPC
+extern void cb_proxyCallbackHandler_Service(int p0, void* p1);
    cb_proxyCallbackHandler_Service(length, pdu);
 #else
   // Send the pdu to the client

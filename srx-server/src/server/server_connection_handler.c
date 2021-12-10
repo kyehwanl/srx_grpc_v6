@@ -675,7 +675,7 @@ bool processValidationRequest(ServerConnectionHandler* self,
       " AS Type: %s  AS Relationship: %s", 
       updateID, pathId, 
       asType==2 ? "AS_SEQUENCE": (asType==1 ? "AS_SET": "ETC"),
-      asRelType == 2 ? "provider" : (asRelType == 1 ? "customer": \        
+      asRelType == 2 ? "provider" : (asRelType == 1 ? "customer":         
         (asRelType == 3 ? "sibling": (asRelType == 4 ? "lateral" : "unknown"))));
 
   AS_PATH_LIST *aspl;

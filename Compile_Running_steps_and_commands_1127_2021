@@ -219,7 +219,7 @@ Compilation Orders for grpc enabled srx development
  
     (solution)
         (https://github.com/golang/go/issues/38373)
-        yum -y erase github
+        yum -y erase git
         yum -y install https://repo.ius.io/ius-release-el7.rpm
         yum -y install git222
 

@@ -825,6 +825,8 @@ static void _killClientThread(void* clt)
 #ifdef USE_GRPC
     if(!clientThread->type_grpc_client)
       close(clientThread->clientFD);
+#else
+      close(clientThread->clientFD);
 #endif
 
     // Wait until the thread terminated - if necessary

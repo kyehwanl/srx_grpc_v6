@@ -77,7 +77,9 @@ extern void handleSRxSignatures(SRxUpdateID* updateID, BGPSecData* data,
                                 void* bgpRouter);
 extern void handleSRxSynchRequest(void* bgpRouter);
 int respawnReceivePacket(struct thread *t);
+#ifdef USE_GRPC
 int respawn_grpc_init(struct thread *t);
+#endif // USE_GRPC
 struct thread *g_current_read_thread;
 
 struct SRxThread* srx_thread_arg_new(void)

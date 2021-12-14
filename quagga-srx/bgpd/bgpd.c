@@ -77,8 +77,10 @@ void handleSRxSynchRequest(void* bgpRouter);
 void handleSRxMessages(SRxProxyCommCode mainCode, int subCode, void* userPtr);
 void srx_set_default(struct bgp *bgp);
 int respawnReceivePacket(struct thread *t);
+#ifdef USE_GRPC
 int respawn_grpc_init(struct thread *t);
 bool grpc_init (SRxProxy* proxy, uint32_t proxyID, char* host, int srx_port_grpc);
+#endif // USE_GRPC
 #endif /* USE_SRX */
 
 /* BGP process wide configuration.  */

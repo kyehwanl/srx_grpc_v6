@@ -223,6 +223,11 @@ Compilation Orders for grpc enabled srx development
         yum -y install https://repo.ius.io/ius-release-el7.rpm
         yum -y install git222
 
+        (or 
+            yum -y install https://packages.endpoint.com/rhel/7/os/x86_64/endpoint-repo-1.9-1.x86_64.rpm
+            yum -y install git 
+        )
+
     (Cautioin)
         golang and golang-bin will be removed when erased the original git v1.8, 
         so, need to reinstall golang 

@@ -434,7 +434,7 @@ Compilation Orders for grpc enabled srx development
 
 
 
-    (4) clietn go build
+    (4) client go build
     go mod init srx_grpc
     go build -gcflags '-N -l' srx_grpc_client.go
 
@@ -456,6 +456,8 @@ Compilation Orders for grpc enabled srx development
     go get -u google.golang.org/grpc
 
     go mod init srx_grpc_v6
+    (in go version 1.16.7, "go mod tidy" is required to make go.sum)
+
     go build -gcflags '-N -l' srx_grpc_client.go
     go build -gcflags '-N -l' -buildmode=c-shared -o libsrx_grpc_client.so  srx_grpc_client.go
 

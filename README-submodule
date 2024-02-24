@@ -1,0 +1,14 @@
+
+Not working 'git submodule update --init'
+------------------------------------------
+
+in the middle of shell processing, srx_grpc_v6_sync_vm005.sh, 
+'git push' process from the original directory, 
+the following command got rid of .git working tree related to submodule 
+
+  rsync -avPuiz --delete srx_grpc0_v6/ srx_grpc_v6/ --exclude='.git'
+
+So, it needs to add again with the following command,
+
+  git submodule add https://github.com/usnistgov/NIST-BGP-SRx.git NIST-BGP-SRx
+
